@@ -422,7 +422,7 @@ async function upsertSession(openid, input) {
     const current = existing.data[0];
     const incomingCount = Object.keys(session.answers).length;
     const currentCount = Object.keys(current.answers || {}).length;
-    const explicitRestart = session.sessionId !== current.sessionId && session.startedAt >= current.startedAt;
+    const explicitRestart = session.sessionId !== current.sessionId && (input.restart === true || session.startedAt >= current.startedAt);
     const sameSessionUpdate = session.sessionId === current.sessionId && incomingCount === currentCount;
     const basedOnCurrentServerVersion = baseServerUpdatedAt && baseServerUpdatedAt >= Number(current.serverUpdatedAt || 0);
     const legacyTimestampFallback = !current.serverUpdatedAt && session.updatedAt >= current.updatedAt;

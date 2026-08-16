@@ -131,6 +131,7 @@ test("防抖同步会更新答题页持有的服务端版本基线", async () =>
   await new Promise((resolve) => setTimeout(resolve, 760));
 
   assert.equal(session.serverUpdatedAt, 777);
+  assert.equal(cloudCalls.find((call) => call.action === "upsertSession").session.restart, true);
   assert.equal(storage.getSession(scale.id).serverUpdatedAt, 777);
 });
 

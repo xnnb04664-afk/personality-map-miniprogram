@@ -28,6 +28,12 @@
 
 AI 功能只由云函数向 DeepSeek 发送量表版本、五维分数和 30 个分面分数，不发送逐题答案、OpenID 或其他身份信息。未配置 AI、离线或生成失败时，静态报告仍可完整使用。
 
+命令行部署也可以使用 `uploadCloudFunction.sh`。脚本通过环境变量 `INSTALL_PATH`、`ENV_ID`、`PROJECT_PATH`，或按顺序传入这三个参数读取配置；缺少云开发 CLI 路径或环境 ID 时会直接退出并显示用法：
+
+```bash
+./uploadCloudFunction.sh /path/to/cloudbase-cli 环境ID /path/to/project
+```
+
 ## 验证
 
 ```powershell

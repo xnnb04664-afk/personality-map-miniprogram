@@ -40,7 +40,7 @@ async function callCloud(action, data = {}, timeoutMs = CLOUD_TIMEOUT_MS) {
   return response.result.data;
 }
 
-function newSession(scaleId) {
+function newSession(scaleId, explicitRestart = false) {
   const scale = getScale(scaleId);
   if (!scale) throw new Error("UNKNOWN_SCALE");
   const now = Date.now();
@@ -53,6 +53,7 @@ function newSession(scaleId) {
     status: "in_progress",
     startedAt: now,
     updatedAt: now,
+    restart: Boolean(explicitRestart),
     synced: false,
   });
 }
@@ -62,7 +63,7 @@ function getOrCreateSession(scaleId, restart = false) {
     cancelSessionSync(scaleId);
     storage.removeSession(scaleId);
   }
-  return storage.getSession(scaleId) || newSession(scaleId);
+  return storage.getSession(scaleId) || newSession(scaleId, restart);
 }
 
 function cancelSessionSync(scaleId) {
