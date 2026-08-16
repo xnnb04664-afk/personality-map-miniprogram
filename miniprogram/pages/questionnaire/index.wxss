@@ -277,8 +277,8 @@ page {
   height: 80rpx;
   margin: 0 auto;
   padding: 0;
-  border: 2rpx solid #a83f3f;
-  background: #b54848;
+  border: 2rpx solid #9ba6a2;
+  background: #aeb8b4;
   line-height: 1;
   text-align: center;
 }

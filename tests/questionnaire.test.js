@@ -49,7 +49,7 @@ test("答题页使用单屏布局并只让长题文区域滚动", () => {
   assert.match(styles, /\.scroll-mode\s*\{[\s\S]*?overflow:\s*visible;/);
   assert.match(styles, /grid-template-columns:\s*minmax\(0, 1fr\) 88rpx minmax\(0, 1fr\)/);
   assert.match(styles, /\.reset-button\s*\{[\s\S]*?width:\s*80rpx;[\s\S]*?height:\s*80rpx;/);
-  assert.match(styles, /\.reset-button\s*\{[\s\S]*?border:\s*2rpx solid #a83f3f;[\s\S]*?background:\s*#b54848;/);
+  assert.match(styles, /\.reset-button\s*\{[\s\S]*?border:\s*2rpx solid #9ba6a2;[\s\S]*?background:\s*#aeb8b4;/);
   assert.match(styles, /\.reset-icon\s*\{[\s\S]*?width:\s*40rpx;[\s\S]*?height:\s*40rpx;/);
 });
 
