@@ -7,6 +7,9 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const SESSION_COLLECTION = "assessment_sessions";
 const RESULT_COLLECTION = "assessment_results";
+const CONSENT_COLLECTION = "assessment_consents";
+const CONSENT_VERSION = "v1";
+const CONSENT_SCOPES = ["openid", "answers", "scores"];
 const RESULT_PAGE_SIZE = 50;
 const AI_INSIGHT_VERSION = 1;
 const AI_LOCK_MS = 2 * 60 * 1000;
@@ -28,7 +31,7 @@ Object.keys(SCALE_CONFIG.scales).forEach((scaleId) => {
 let collectionsReady;
 async function ensureCollections() {
   if (!collectionsReady) {
-    collectionsReady = Promise.all([SESSION_COLLECTION, RESULT_COLLECTION].map(async (name) => {
+    collectionsReady = Promise.all([SESSION_COLLECTION, RESULT_COLLECTION, CONSENT_COLLECTION].map(async (name) => {
       try { await db.createCollection(name); } catch (error) { /* 已存在时继续 */ }
     }));
   }
@@ -345,6 +348,42 @@ function cleanDoc(doc) {
   return safe;
 }
 
+function cleanResultDoc(doc) {
+  const safe = cleanDoc(doc);
+  if (safe) delete safe.answers;
+  return safe;
+}
+
+async function getConsent(openid) {
+  const response = await db.collection(CONSENT_COLLECTION).where({ _openid: openid, consentVersion: CONSENT_VERSION }).limit(1).get();
+  if (!response.data.length) return { accepted: false, consentVersion: CONSENT_VERSION, scopes: CONSENT_SCOPES };
+  const consent = response.data[0];
+  return { accepted: true, consentVersion: consent.consentVersion, scopes: consent.scopes, acceptedAt: consent.acceptedAt };
+}
+
+async function requireConsent(openid) {
+  const consent = await getConsent(openid);
+  if (!consent.accepted) throw new Error("CONSENT_REQUIRED");
+  return consent;
+}
+
+async function saveConsent(openid, input) {
+  if (!input || input.consentVersion !== CONSENT_VERSION || !Array.isArray(input.scopes)
+    || input.scopes.length !== CONSENT_SCOPES.length || input.scopes.some((scope) => !CONSENT_SCOPES.includes(scope))) {
+    throw new Error("INVALID_CONSENT");
+  }
+  const acceptedAt = Date.now();
+  const consent = {
+    _openid: openid,
+    consentVersion: CONSENT_VERSION,
+    scopes: CONSENT_SCOPES,
+    acceptedAt,
+    revokedAt: null,
+  };
+  await db.collection(CONSENT_COLLECTION).doc(scopedDocumentId(openid, "consent", CONSENT_VERSION)).set({ data: consent });
+  return { accepted: true, consentVersion: CONSENT_VERSION, scopes: CONSENT_SCOPES, acceptedAt };
+}
+
 function scopedDocumentId(openid, scope, value) {
   return crypto.createHash("sha256").update(`${openid}:${scope}:${value}`).digest("hex");
 }
@@ -374,7 +413,7 @@ async function listStoredResults(openid, requestedOffset = 0) {
     .limit(RESULT_PAGE_SIZE + 1)
     .get();
   const hasMore = response.data.length > RESULT_PAGE_SIZE;
-  const results = response.data.slice(0, RESULT_PAGE_SIZE).map(cleanDoc);
+  const results = response.data.slice(0, RESULT_PAGE_SIZE).map(cleanResultDoc);
   return { results, hasMore, nextOffset: hasMore ? offset + results.length : null };
 }
 
@@ -396,6 +435,7 @@ async function getState(openid) {
 async function upsertSession(openid, input) {
   const def = SCALE_DEFS[input && input.scaleId];
   if (!input || !def || input.scaleVersion !== def.version || typeof input.sessionId !== "string") throw new Error("INVALID_SESSION");
+  await requireConsent(openid);
   validateAnswers(input.scaleId, input.answers, false);
   if (await hasCompletedSession(openid, input.sessionId)) {
     await db.collection(SESSION_COLLECTION).where({ _openid: openid, sessionId: input.sessionId, status: "in_progress" }).remove();
@@ -446,6 +486,7 @@ async function upsertSession(openid, input) {
 async function completeSession(openid, input) {
   const def = SCALE_DEFS[input && input.scaleId];
   if (!input || !def || input.scaleVersion !== def.version || typeof input.resultId !== "string") throw new Error("INVALID_RESULT");
+  await requireConsent(openid);
   validateAnswers(input.scaleId, input.answers, true);
   validateDomains(input.domains);
   verifyScores(input.scaleId, input.answers, input.domains);
@@ -458,6 +499,7 @@ async function completeSession(openid, input) {
     scaleTitle: String(input.scaleTitle || ""),
     itemCount: def.itemCount,
     facetReliability: def.facetReliability || "standard",
+    answers: input.answers,
     domains: input.domains,
     completedAt: Number(input.completedAt) || Date.now(),
     serverUpdatedAt: Date.now(),
@@ -481,7 +523,7 @@ async function completeSession(openid, input) {
 async function getResult(openid, resultId) {
   if (typeof resultId !== "string") throw new Error("INVALID_RESULT_ID");
   const response = await db.collection(RESULT_COLLECTION).where({ _openid: openid, resultId }).limit(1).get();
-  return response.data.length ? cleanDoc(response.data[0]) : null;
+  return response.data.length ? cleanResultDoc(response.data[0]) : null;
 }
 
 async function deleteResult(openid, resultId) {
@@ -494,6 +536,7 @@ async function deleteAll(openid) {
   await Promise.all([
     db.collection(SESSION_COLLECTION).where({ _openid: openid }).remove(),
     db.collection(RESULT_COLLECTION).where({ _openid: openid }).remove(),
+    db.collection(CONSENT_COLLECTION).where({ _openid: openid }).remove(),
   ]);
   return { deleted: true };
 }
@@ -505,6 +548,8 @@ exports.main = async (event) => {
     if (!OPENID) throw new Error("UNAUTHENTICATED");
     let data;
     switch (event.action) {
+      case "getConsent": data = await getConsent(OPENID); break;
+      case "saveConsent": data = await saveConsent(OPENID, event); break;
       case "getState": data = await getState(OPENID); break;
       case "upsertSession": data = await upsertSession(OPENID, event.session); break;
       case "completeSession": data = await completeSession(OPENID, event.result); break;

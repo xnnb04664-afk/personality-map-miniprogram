@@ -5,6 +5,16 @@ const path = require("node:path");
 
 const source = fs.readFileSync(path.join(__dirname, "../cloudfunctions/assessmentApi/index.js"), "utf8");
 
+test("云端同意记录和答案收集受服务端门禁保护", () => {
+  assert.match(source, /const CONSENT_COLLECTION = "assessment_consents"/);
+  assert.match(source, /case "getConsent": data = await getConsent\(OPENID\)/);
+  assert.match(source, /case "saveConsent": data = await saveConsent\(OPENID, event\)/);
+  assert.match(source, /await requireConsent\(openid\)/);
+  assert.match(source, /answers: input\.answers/);
+  assert.match(source, /CONSENT_COLLECTION\)\.where\(\{ _openid: openid \}\)\.remove/);
+  assert.match(source, /function cleanResultDoc/);
+});
+
 test("云端分别读取三种量表的未完成会话", () => {
   assert.match(source, /Promise\.all\(Object\.keys\(SCALE_DEFS\)\.map/);
   assert.doesNotMatch(source, /status: "in_progress" \}\)\.limit\(2\)/);

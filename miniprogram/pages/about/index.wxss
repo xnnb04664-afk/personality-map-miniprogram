@@ -13,3 +13,4 @@
 .privacy-row { display: flex; justify-content: space-between; margin-bottom: 24rpx; padding: 22rpx 0; border-top: 1rpx solid #e3e7e5; border-bottom: 1rpx solid #e3e7e5; }
 .privacy-value { color: #187a68; font-weight: 650; }
 .delete-all { display: flex; align-items: center; justify-content: center; margin-top: 28rpx; height: 82rpx; line-height: 1.4; color: #a33f3f; background: #f8eaea; }
+.consent-button { margin-top: 24rpx; }

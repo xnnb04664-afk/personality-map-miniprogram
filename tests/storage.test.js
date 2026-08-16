@@ -32,7 +32,7 @@ test("删除单条和清空不会保留旧数据", () => {
   assert.equal(storage.getResult("r1"), null);
   assert.equal(storage.readState().results.length, 1);
   storage.clearAll();
-  assert.deepEqual(storage.readState(), { sessions: {}, results: [], pendingDeletes: { all: false, resultIds: [] } });
+  assert.deepEqual(storage.readState(), { sessions: {}, results: [], pendingDeletes: { all: false, resultIds: [] }, cloudConsent: null });
 });
 
 test("云端删除墓碑会持久化并可逐项清除", () => {

@@ -3,12 +3,13 @@ let storageWarningShown = false;
 let volatileState = null;
 
 function emptyState() {
-  return { sessions: {}, results: [], pendingDeletes: { all: false, resultIds: [] } };
+  return { sessions: {}, results: [], pendingDeletes: { all: false, resultIds: [] }, cloudConsent: null };
 }
 
 function normalizeState(saved) {
   if (!saved || !saved.sessions || !Array.isArray(saved.results)) return { state: emptyState(), changed: false };
   const pending = saved.pendingDeletes || {};
+  const consent = saved.cloudConsent && typeof saved.cloudConsent === "object" ? saved.cloudConsent : null;
   let changed = false;
   const results = saved.results.map((result) => {
     if (!result || !result.synced || !("answers" in result)) return result;
@@ -24,6 +25,7 @@ function normalizeState(saved) {
         all: Boolean(pending.all),
         resultIds: Array.isArray(pending.resultIds) ? Array.from(new Set(pending.resultIds.filter((id) => typeof id === "string"))) : [],
       },
+      cloudConsent: consent,
     },
     changed,
   };
@@ -125,6 +127,21 @@ function clearAll(queueCloudDelete = false) {
   writeState(state);
 }
 
+function getCloudConsent() {
+  return readState().cloudConsent || null;
+}
+
+function saveCloudConsent(consent) {
+  const state = readState();
+  state.cloudConsent = consent || null;
+  writeState(state);
+  return state.cloudConsent;
+}
+
+function clearCloudConsent() {
+  return saveCloudConsent(null);
+}
+
 module.exports = {
   STORAGE_KEY,
   readState,
@@ -139,4 +156,7 @@ module.exports = {
   clearPendingResultDelete,
   clearPendingDeleteAll,
   clearAll,
+  getCloudConsent,
+  saveCloudConsent,
+  clearCloudConsent,
 };

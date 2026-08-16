@@ -16,7 +16,8 @@ Page({
     }
     if (assessment.cloudEnabled()) {
       this.setData({ syncing: true });
-      assessment.syncAll()
+      assessment.ensureCloudConsent({ prompt: true })
+        .then((consented) => consented ? assessment.syncAll() : null)
         .then(() => this.refresh())
         .catch((error) => console.warn("云端同步暂不可用", error.message))
         .then(() => this.setData({ syncing: false }));

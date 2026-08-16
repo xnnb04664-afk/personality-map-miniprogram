@@ -4,12 +4,15 @@ const { validateAnswers, scoreAssessment } = require("../utils/scoring");
 
 const CLOUD_TIMEOUT_MS = 12000;
 const AI_CLOUD_TIMEOUT_MS = 32000;
+const CLOUD_CONSENT_VERSION = "v1";
+const CLOUD_CONSENT_SCOPES = ["openid", "answers", "scores"];
 const PERMANENT_RESULT_ERRORS = new Set([
   "INVALID_RESULT", "INVALID_ANSWERS", "INVALID_ANSWER_VALUE", "INCOMPLETE_ANSWERS", "INVALID_SCORES", "SCORE_MISMATCH",
 ]);
 const syncTimers = new Map();
 const completedSessionIds = new Set();
 let syncPromise = null;
+let consentPromise = null;
 
 function cloudEnabled() {
   try {
@@ -77,6 +80,59 @@ function withoutAnswers(result) {
   return summary;
 }
 
+function getCloudConsent() {
+  return storage.getCloudConsent();
+}
+
+function hasCloudConsent() {
+  const consent = getCloudConsent();
+  return Boolean(consent && consent.status === "accepted" && consent.consentVersion === CLOUD_CONSENT_VERSION);
+}
+
+function handleCloudError(error) {
+  if (String(error && error.message || error) === "CONSENT_REQUIRED") storage.clearCloudConsent();
+}
+
+async function ensureCloudConsent({ prompt = false, forcePrompt = false } = {}) {
+  if (!cloudEnabled()) return false;
+  if (hasCloudConsent()) return true;
+  const local = getCloudConsent();
+  if (local && local.status === "declined" && !forcePrompt) return false;
+  if (consentPromise) return consentPromise;
+  consentPromise = (async () => {
+    try {
+      const remote = await callCloud("getConsent");
+      if (remote && remote.accepted) {
+        storage.saveCloudConsent({ status: "accepted", consentVersion: remote.consentVersion || CLOUD_CONSENT_VERSION, scopes: remote.scopes || CLOUD_CONSENT_SCOPES, acceptedAt: remote.acceptedAt || Date.now() });
+        return true;
+      }
+      if (!prompt && !forcePrompt) return false;
+      const modal = await new Promise((resolve) => wx.showModal({
+        title: "数据与隐私",
+        content: "同意后，我们会使用微信 OpenID 保存量表版本、逐题答案、五维/分面分数和完成时间，用于同步历史记录和改进产品。不收集姓名、头像、手机号、邮箱、年龄或性别。你可以随时在隐私页删除全部数据。",
+        confirmText: "同意并同步",
+        cancelText: "暂不同意",
+        confirmColor: "#187A68",
+        success: resolve,
+        fail: () => resolve({ confirm: false }),
+      }));
+      if (!modal.confirm) {
+        storage.saveCloudConsent({ status: "declined", consentVersion: CLOUD_CONSENT_VERSION, declinedAt: Date.now() });
+        return false;
+      }
+      const saved = await callCloud("saveConsent", { consentVersion: CLOUD_CONSENT_VERSION, scopes: CLOUD_CONSENT_SCOPES });
+      storage.saveCloudConsent({ status: "accepted", consentVersion: saved.consentVersion || CLOUD_CONSENT_VERSION, scopes: saved.scopes || CLOUD_CONSENT_SCOPES, acceptedAt: saved.acceptedAt || Date.now() });
+      return true;
+    } catch (error) {
+      console.warn("云端隐私同意暂不可用", error.message);
+      return false;
+    } finally {
+      consentPromise = null;
+    }
+  })();
+  return consentPromise;
+}
+
 function sessionRevision(session) {
   return Number(session && session.serverUpdatedAt) || Number(session && session.updatedAt) || 0;
 }
@@ -86,7 +142,7 @@ function scheduleSessionSync(session) {
   cancelSessionSync(session.scaleId);
   const timer = setTimeout(async () => {
     syncTimers.delete(session.scaleId);
-    if (completedSessionIds.has(session.sessionId)) return;
+    if (completedSessionIds.has(session.sessionId) || !hasCloudConsent()) return;
     const latest = storage.getSession(session.scaleId);
     if (!latest || latest.sessionId !== session.sessionId || latest.updatedAt !== session.updatedAt) return;
     try {
@@ -101,6 +157,7 @@ function scheduleSessionSync(session) {
         storage.saveSession({ ...authoritative, synced: true });
       }
     } catch (error) {
+      handleCloudError(error);
       console.warn("答题进度将在稍后同步", error.message);
     }
   }, 700);
@@ -130,7 +187,7 @@ function updateSessionPosition(session, currentIndex) {
   return updated;
 }
 
-async function completeSession(session) {
+async function completeSession(session, options = {}) {
   const score = scoreAssessment(session.scaleId, session.answers);
   const scale = getScale(session.scaleId);
   const result = {
@@ -150,7 +207,8 @@ async function completeSession(session) {
   cancelSessionSync(session.scaleId);
   storage.saveResult(result);
   try {
-    if (cloudEnabled()) return await syncResult(result);
+    const canSync = cloudEnabled() && (options.consentChecked ? options.allowCloud === true : await ensureCloudConsent({ prompt: true, forcePrompt: true }));
+    if (canSync) return await syncResult(result);
     return result;
   } finally {
     completedSessionIds.delete(session.sessionId);
@@ -164,6 +222,7 @@ async function syncResult(result) {
     storage.saveResult(synced);
     return synced;
   } catch (error) {
+    handleCloudError(error);
     const errorCode = String(error && error.message || "CLOUD_REQUEST_FAILED");
     const failed = { ...result, synced: false, syncBlocked: PERMANENT_RESULT_ERRORS.has(errorCode), syncError: errorCode };
     storage.saveResult(failed);
@@ -220,11 +279,16 @@ async function syncPendingDeletes() {
 }
 
 async function performSyncAll() {
+  if (!hasCloudConsent()) {
+    await syncPendingDeletes();
+    return storage.readState();
+  }
   if (!await syncPendingDeletes()) return storage.readState();
   const state = storage.readState();
   const pendingSessions = Object.values(state.sessions).filter((item) => !item.synced);
   const pendingResults = state.results.filter((item) => !item.synced && !item.syncBlocked);
   await Promise.all(pendingSessions.map((session) => callCloud("upsertSession", { session }).catch((error) => {
+    handleCloudError(error);
     console.warn("答题进度将在稍后同步", error.message);
   })));
   await Promise.all(pendingResults.map((result) => syncResult(result)));
@@ -240,6 +304,8 @@ async function performSyncAll() {
 
 function syncAll() {
   if (!cloudEnabled()) return Promise.resolve(storage.readState());
+  const pendingDeletes = storage.readState().pendingDeletes;
+  if (!hasCloudConsent() && !pendingDeletes.all && !pendingDeletes.resultIds.length) return Promise.resolve(storage.readState());
   if (syncPromise) return syncPromise;
   syncPromise = performSyncAll();
   syncPromise.then(() => { syncPromise = null; }, () => { syncPromise = null; });
@@ -308,6 +374,9 @@ async function deleteAll() {
 
 module.exports = {
   cloudEnabled,
+  ensureCloudConsent,
+  hasCloudConsent,
+  cloudConsentStatus: getCloudConsent,
   getOrCreateSession,
   answerQuestion,
   updateSessionPosition,

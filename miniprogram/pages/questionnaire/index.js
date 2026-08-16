@@ -140,15 +140,21 @@ Page({
       return;
     }
     this.submitting = true;
-    wx.showLoading({ title: "生成报告" });
-    assessment.completeSession(this.session).then((result) => {
+    const finish = (allowCloud) => {
+      wx.showLoading({ title: "生成报告" });
+      return assessment.completeSession(this.session, { consentChecked: true, allowCloud }).then((result) => {
       wx.hideLoading();
       wx.redirectTo({ url: `/pages/result/index?resultId=${result.resultId}` });
-    }).catch(() => {
+      }).catch(() => {
       this.submitting = false;
       wx.hideLoading();
       wx.showToast({ title: "生成失败，请检查答案", icon: "none" });
-    });
+      });
+    };
+    const consent = assessment.cloudEnabled()
+      ? assessment.ensureCloudConsent({ prompt: true, forcePrompt: true })
+      : Promise.resolve(false);
+    consent.then(finish).catch(() => finish(false));
   },
   restart() {
     this.clearAdvanceTimer();

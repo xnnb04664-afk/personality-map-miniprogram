@@ -29,6 +29,7 @@ const assessment = require("../miniprogram/services/assessment");
 
 test.beforeEach(() => {
   memory.clear();
+  storage.saveCloudConsent({ status: "accepted", consentVersion: "v1", scopes: ["openid", "answers", "scores"], acceptedAt: 1 });
   cloudCalls.length = 0;
   wx.cloud.callFunction = successfulCallFunction;
 });
@@ -100,6 +101,33 @@ test("并发同步请求复用同一个进行中的任务", async () => {
   assert.equal(cloudCalls.filter((call) => call.action === "getState").length, 1);
 });
 
+test("未同意云端收集时不上传答题数据", async () => {
+  storage.clearCloudConsent();
+  storage.saveSession({ scaleId: "ipip-neo-60-zh-local-v1", sessionId: "local-only", answers: { q1: 3 }, synced: false });
+  await assessment.syncAll();
+  assert.equal(cloudCalls.length, 0);
+});
+
+test("同意后保存同意记录并允许同步", async () => {
+  storage.clearCloudConsent();
+  const originalCall = wx.cloud.callFunction;
+  wx.showModal = ({ success }) => success({ confirm: true });
+  wx.cloud.callFunction = ({ data }) => {
+    cloudCalls.push(data);
+    if (data.action === "getConsent") return Promise.resolve({ result: { ok: true, data: { accepted: false } } });
+    if (data.action === "saveConsent") return Promise.resolve({ result: { ok: true, data: { accepted: true, consentVersion: "v1", scopes: data.scopes, acceptedAt: 2 } } });
+    if (data.action === "getState") return Promise.resolve({ result: { ok: true, data: { sessions: [], results: [] } } });
+    return Promise.resolve({ result: { ok: true, data: {} } });
+  };
+  try {
+    assert.equal(await assessment.ensureCloudConsent({ prompt: true, forcePrompt: true }), true);
+    assert.equal(storage.getCloudConsent().status, "accepted");
+    assert.deepEqual(Object.keys(cloudCalls[1]).sort(), ["action", "consentVersion", "scopes"]);
+  } finally {
+    wx.cloud.callFunction = originalCall;
+  }
+});
+
 test("同步后的同版本云端草稿会回写已同步状态", async () => {
   const scaleId = "ipip-neo-60-zh-local-v1";
   const session = assessment.getOrCreateSession(scaleId, true);
@@ -147,6 +175,7 @@ test("完成答题会取消尚未执行的草稿同步", async () => {
   await new Promise((resolve) => setTimeout(resolve, 760));
 
   assert.deepEqual(cloudCalls.map((call) => call.action), ["completeSession"]);
+  assert.equal(Object.keys(cloudCalls[0].result.answers).length, scale.itemCount);
   assert.equal(storage.getSession(scale.id), null);
   assert.equal(storage.readState().results.length, 1);
   assert.equal(Object.hasOwn(storage.readState().results[0], "answers"), false);
