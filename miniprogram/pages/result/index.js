@@ -56,6 +56,7 @@ Page({
     aiError: "",
     aiButtonText: "生成 AI 深度解读",
     cloudAvailable: false,
+    showAiConsent: false,
   },
 
   onLoad(options) {
@@ -205,15 +206,36 @@ Page({
     try {
       if (wx.getStorageSync(AI_CONSENT_KEY) === true) return true;
     } catch (error) { /* 无法读取时重新询问 */ }
-    const modal = await callWxApi("showModal", {
-      title: "生成 AI 深度解读",
-      content: "将把量表版本、五维分数和 30 个分面分数发送给 DeepSeek。不会发送逐题答案、OpenID 或其他身份信息。是否继续？",
-      confirmText: "同意并生成",
-      cancelText: "暂不生成",
+    return new Promise((resolve) => {
+      this.aiConsentResolver = resolve;
+      this.setData({ showAiConsent: true });
     });
-    if (!modal.confirm) return false;
-    try { wx.setStorageSync(AI_CONSENT_KEY, true); } catch (error) { /* 同意仍对本次有效 */ }
-    return true;
+  },
+
+  keepAiConsentOpen() {},
+
+  finishAiConsent(confirmed) {
+    const resolve = this.aiConsentResolver;
+    this.aiConsentResolver = null;
+    this.setData({ showAiConsent: false });
+    if (confirmed) {
+      try { wx.setStorageSync(AI_CONSENT_KEY, true); } catch (error) { /* 同意仍对本次有效 */ }
+    }
+    if (resolve) resolve(confirmed);
+  },
+
+  acceptAiConsent() {
+    this.finishAiConsent(true);
+  },
+
+  cancelAiConsent() {
+    this.finishAiConsent(false);
+  },
+
+  onUnload() {
+    const resolve = this.aiConsentResolver;
+    this.aiConsentResolver = null;
+    if (resolve) resolve(false);
   },
 
   async generateAiInsight() {

@@ -98,4 +98,16 @@
   <view class="disclaimer">本报告用于非临床自我探索，不应作为医疗、招聘、升学或其他重大决策的唯一依据。</view>
 
   <canvas type="2d" id="posterCanvas" class="poster-canvas"></canvas>
+
+  <view wx:if="{{showAiConsent}}" class="ai-consent-mask" catchtap="cancelAiConsent">
+    <view class="ai-consent-dialog" catchtap="keepAiConsentOpen">
+      <view class="ai-consent-title">生成 AI 深度解读</view>
+      <view class="ai-consent-copy">将把量表版本、五维分数和 30 个分面分数发送给 DeepSeek。不会发送逐题答案、OpenID 或其他身份信息。</view>
+      <view class="ai-consent-note">AI 解读仅用于自我探索，不构成心理诊断或重大决策建议。</view>
+      <view class="ai-consent-actions">
+        <button class="ai-consent-cancel" bindtap="cancelAiConsent">暂不生成</button>
+        <button class="ai-consent-confirm" bindtap="acceptAiConsent">同意并生成</button>
+      </view>
+    </view>
+  </view>
 </view>

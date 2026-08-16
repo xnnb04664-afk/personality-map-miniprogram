@@ -7,6 +7,7 @@ let pageDefinition;
 let saveAttempts;
 let lastToast;
 let exportedOptions;
+let aiConsentStored;
 const drawingCalls = [];
 
 const context = {
@@ -53,6 +54,8 @@ function selectorQuery() {
 }
 
 global.wx = {
+  getStorageSync() { return aiConsentStored; },
+  setStorageSync(_key, value) { aiConsentStored = value; },
   createSelectorQuery: selectorQuery,
   getWindowInfo() { return { pixelRatio: 2 }; },
   showLoading() {},
@@ -102,6 +105,7 @@ test.beforeEach(() => {
   saveAttempts = 0;
   lastToast = "";
   exportedOptions = null;
+  aiConsentStored = undefined;
   drawingCalls.length = 0;
   wx.rejectFirstSave = false;
 });
@@ -154,6 +158,20 @@ test("报告包含概览、五维、分面三个视图并支持折叠", () => {
   assert.equal(page.data.expandedDomain, "N");
   page.toggleDomain({ currentTarget: { dataset: { id: "N" } } });
   assert.equal(page.data.expandedDomain, "");
+});
+
+test("AI 隐私确认使用页面内弹窗并在同意后继续", async () => {
+  const template = fs.readFileSync(path.join(__dirname, "../miniprogram/pages/result/index.wxml"), "utf8");
+  assert.match(template, /wx:if="{{showAiConsent}}"/);
+  assert.match(template, /bindtap="acceptAiConsent">同意并生成<\/button>/);
+
+  const page = createPage();
+  const consent = page.confirmAiPrivacy();
+  assert.equal(page.data.showAiConsent, true);
+  page.acceptAiConsent();
+  assert.equal(await consent, true);
+  assert.equal(page.data.showAiConsent, false);
+  assert.equal(aiConsentStored, true);
 });
 
 test("五轴雷达图按 DPR 绘制网格、数据区域和标签", async () => {

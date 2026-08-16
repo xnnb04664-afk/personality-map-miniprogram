@@ -66,6 +66,15 @@
 .report-actions { display: flex; flex-direction: column; gap: 18rpx; padding: 38rpx 32rpx 20rpx; background: #ffffff; }
 .disclaimer { padding: 10rpx 46rpx; color: #818a87; background: #ffffff; font-size: 21rpx; line-height: 1.65; text-align: center; }
 .poster-canvas { position: absolute; top: 0; left: 0; z-index: -1; width: 300px; height: 410px; opacity: 0; pointer-events: none; }
+.ai-consent-mask { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 40rpx; background: rgba(18, 27, 24, 0.52); }
+.ai-consent-dialog { width: 100%; max-width: 640rpx; padding: 38rpx 32rpx 30rpx; border-radius: 14rpx; background: #ffffff; box-shadow: 0 12rpx 50rpx rgba(18, 27, 24, 0.18); }
+.ai-consent-title { color: #17201d; font-size: 34rpx; font-weight: 750; line-height: 1.45; }
+.ai-consent-copy { margin-top: 22rpx; color: #43504b; font-size: 26rpx; line-height: 1.75; }
+.ai-consent-note { margin-top: 18rpx; padding: 16rpx 18rpx; color: #68736f; background: #f4f7f6; font-size: 23rpx; line-height: 1.6; }
+.ai-consent-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 18rpx; margin-top: 28rpx; }
+.ai-consent-actions button { height: 82rpx; padding: 0; line-height: 82rpx; font-size: 26rpx; }
+.ai-consent-cancel { color: #56615d; background: #eef1f0; }
+.ai-consent-confirm { color: #ffffff; background: #187a68; }
 
 @media screen and (max-width: 360px) {
   .report-head, .report-section, .domain-detail, .facet-group { padding-right: 26rpx; padding-left: 26rpx; }
