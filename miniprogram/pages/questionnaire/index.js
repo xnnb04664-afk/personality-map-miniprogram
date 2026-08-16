@@ -39,7 +39,8 @@ Page({
     const compact = windowHeight <= 700;
     const reservedRpx = compact ? 374 : 472;
     const availablePerChoice = (windowHeight - safeBottom - reservedRpx * rpx) / 5;
-    const minimumChoiceHeight = Math.max(52, 104 * rpx);
+    // 保留两行中文题目/选项的内容空间，极窄屏时由 scrollMode 提供滚动兜底。
+    const minimumChoiceHeight = Math.max(64, 128 * rpx);
     this.setData({
       choiceWidth: Math.floor(windowWidth - 64 * rpx),
       choiceHeight: Math.floor(Math.max(minimumChoiceHeight, availablePerChoice)),

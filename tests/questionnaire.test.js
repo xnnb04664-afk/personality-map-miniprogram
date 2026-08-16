@@ -67,7 +67,7 @@ test("不同屏幕高度会放大选项或自动启用滚动兜底", () => {
     page.configureLayout({ windowWidth, windowHeight, screenHeight: windowHeight, safeArea: { bottom: windowHeight } });
     assert.equal(page.data.scrollMode, false, `${windowWidth}x${windowHeight}`);
     assert.ok(page.data.choiceWidth >= windowWidth * 0.9, `${windowWidth}x${windowHeight}`);
-    assert.ok(page.data.choiceHeight >= 52, `${windowWidth}x${windowHeight}`);
+    assert.ok(page.data.choiceHeight >= 64, `${windowWidth}x${windowHeight}`);
   });
   assert.ok(page.data.choiceHeight >= 120, "高屏选项应充分利用纵向空间");
 
