@@ -1,0 +1,46 @@
+<view class="page-shell home-page">
+  <view class="brand-row">
+    <view>
+      <view class="brand-name">人格图谱</view>
+      <view class="brand-subtitle">大五人格 · 自我探索</view>
+    </view>
+    <button class="about-button" bindtap="openAbout" aria-label="量表与隐私">i</button>
+  </view>
+
+  <view class="intro-band">
+    <view class="intro-title">从五个维度，理解稳定的行为倾向</view>
+    <view class="intro-copy">选择适合你的版本。结果用于自我了解，不构成心理诊断。</view>
+    <view class="status-row">
+      <view class="status-dot {{cloudEnabled ? 'online' : ''}}"></view>
+      <text>{{cloudEnabled ? (syncing ? '正在同步' : '云端同步已开启') : '本机保存模式'}}</text>
+    </view>
+  </view>
+
+  <view wx:if="{{loadError}}" class="load-error">
+    <view class="load-error-title">页面加载失败</view>
+    <view>请关闭小程序后重新进入；若仍失败，请在开发者工具查看控制台错误。</view>
+  </view>
+  <block wx:else>
+  <view class="section-title">选择量表</view>
+  <view class="scale-list">
+    <view class="scale-card" wx:for="{{scales}}" wx:key="id">
+      <view class="scale-topline">
+        <view class="scale-kind">{{item.itemCount}} 题</view>
+        <view class="scale-time">{{item.minutes}}</view>
+      </view>
+      <view class="scale-title">{{item.title}}</view>
+      <view class="scale-subtitle">{{item.subtitle}}</view>
+      <view class="scale-description">{{item.description}}</view>
+      <view wx:if="{{item.hasProgress}}" class="progress-block">
+        <view class="progress-meta">
+          <text>已完成 {{item.answered}} / {{item.itemCount}}</text>
+          <text>{{item.progress}}% {{item.syncLabel}}</text>
+        </view>
+        <view class="progress-track"><view class="progress-fill" style="width: {{item.progress}}%"></view></view>
+      </view>
+      <button class="primary-button" data-id="{{item.id}}" bindtap="openScale">{{item.hasProgress ? '继续测试' : '开始测试'}}</button>
+      <button wx:if="{{item.hasProgress}}" class="restart-link" data-id="{{item.id}}" bindtap="restartScale">重新开始</button>
+    </view>
+  </view>
+  </block>
+</view>

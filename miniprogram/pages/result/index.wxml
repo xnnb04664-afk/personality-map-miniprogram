@@ -1,0 +1,50 @@
+<view wx:if="{{loading}}" class="empty-state">正在读取报告…</view>
+<view wx:else class="result-page">
+  <view class="report-head">
+    <view class="report-eyebrow">{{result.scaleTitle}} · {{result.itemCount}} 题</view>
+    <view class="report-title">你的人格图谱</view>
+    <view class="report-date">完成于 {{dateText}} · {{result.synced ? '已同步' : '保存在本机'}}</view>
+    <view class="report-note">分数表示你在量表两端之间的位置，不是超过多少人的百分位。</view>
+  </view>
+
+  <view class="report-section overview-section">
+    <view class="section-heading">五维概览</view>
+    <view class="domain-overview" wx:for="{{result.domains}}" wx:key="id">
+      <view class="domain-overview-meta"><text>{{item.name}}</text><text style="color: {{item.color}}">{{item.score}} · {{item.level}}</text></view>
+      <view class="domain-track"><view class="domain-fill" style="width: {{item.score}}%; background: {{item.color}}"></view></view>
+    </view>
+  </view>
+
+  <view wx:if="{{result.facetReliability === 'exploratory'}}" class="short-facet-notice">
+    <view class="short-notice-title">短版分面说明</view>
+    <view>60 题版的每个分面仅由两道题估计，适合发现探索方向；请以五个核心维度作为主要结论。</view>
+  </view>
+
+  <view class="report-section domain-section" wx:for="{{result.domains}}" wx:key="id">
+    <view class="domain-heading">
+      <view><view class="domain-name">{{item.name}}</view><view class="domain-english">{{item.english}}</view></view>
+      <view class="domain-score" style="color: {{item.color}}">{{item.score}}</view>
+    </view>
+    <view class="domain-summary">{{item.summary}}</view>
+    <view class="insight-grid">
+      <view class="insight"><view class="insight-label">可用优势</view><view>{{item.strength}}</view></view>
+      <view class="insight"><view class="insight-label">值得留意</view><view>{{item.watch}}</view></view>
+    </view>
+    <view class="action-line"><text class="action-label">一个行动</text>{{item.action}}</view>
+    <view class="facet-list">
+      <view class="facet-row" wx:for="{{item.facets}}" wx:key="id" wx:for-item="facet">
+        <view class="facet-copy"><view class="facet-name">{{facet.name}}</view><view class="facet-description">{{facet.description}}</view></view>
+        <view class="facet-value"><view>{{facet.score}}</view><view class="facet-level">{{facet.level}}</view></view>
+      </view>
+    </view>
+  </view>
+
+  <view class="report-actions">
+    <button class="primary-button" bindtap="savePoster">保存摘要海报</button>
+    <button class="secondary-button" open-type="share">微信转发</button>
+    <button class="ghost-button" bindtap="openAbout">量表来源与隐私</button>
+  </view>
+  <view class="disclaimer">本报告用于非临床自我探索，不应作为医疗、招聘、升学或其他重大决策的唯一依据。</view>
+
+  <canvas canvas-id="posterCanvas" class="poster-canvas" style="width: 600px; height: 820px;"></canvas>
+</view>

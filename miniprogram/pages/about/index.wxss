@@ -1,0 +1,15 @@
+.about-page { padding-bottom: 60rpx; }
+.about-head { padding: 48rpx 32rpx 42rpx; color: #fff; background: #24564c; }
+.about-title { font-size: 42rpx; font-weight: 750; }
+.about-lead { max-width: 640rpx; margin-top: 18rpx; color: #dce9e5; line-height: 1.7; }
+.about-section { padding: 38rpx 32rpx; border-bottom: 10rpx solid #f4f6f5; background: #fff; }
+.last-section { border-bottom: 0; }
+.section-heading { margin-bottom: 22rpx; font-size: 31rpx; font-weight: 750; }
+.about-copy { margin-bottom: 20rpx; color: #53605b; line-height: 1.8; }
+.notice { margin: 24rpx 0; padding: 22rpx; border-left: 6rpx solid #d9823f; color: #594c41; background: #fbf3eb; font-size: 24rpx; line-height: 1.7; }
+.source-row { display: flex; align-items: center; justify-content: space-between; min-height: 104rpx; border-top: 1rpx solid #e3e7e5; color: #187a68; }
+.source-title { color: #35413d; font-weight: 650; }
+.source-url { margin-top: 6rpx; color: #7c8682; font-size: 22rpx; }
+.privacy-row { display: flex; justify-content: space-between; margin-bottom: 24rpx; padding: 22rpx 0; border-top: 1rpx solid #e3e7e5; border-bottom: 1rpx solid #e3e7e5; }
+.privacy-value { color: #187a68; font-weight: 650; }
+.delete-all { margin-top: 28rpx; height: 82rpx; line-height: 82rpx; color: #a33f3f; background: #f8eaea; }

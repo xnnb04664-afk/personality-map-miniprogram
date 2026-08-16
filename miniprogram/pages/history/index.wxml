@@ -1,0 +1,35 @@
+<view class="page-shell history-page">
+  <view class="page-heading">
+    <view><view class="heading-title">测试记录</view><view class="heading-copy">{{cloudEnabled ? '当前微信账号已同步' : '记录仅保存在本机'}}</view></view>
+    <button wx:if="{{hasData}}" class="clear-button" bindtap="clearAll">清空</button>
+  </view>
+
+  <block wx:if="{{hasData}}">
+    <view wx:if="{{sessions.length}}" class="section-title">未完成</view>
+    <view class="record-list" wx:if="{{sessions.length}}">
+      <view class="session-row" wx:for="{{sessions}}" wx:key="sessionId" data-scale="{{item.scaleId}}" bindtap="continueSession">
+        <view class="record-main"><view class="record-title">{{item.title}}</view><view class="record-meta">{{item.answered}} / {{item.total}} 题 · {{item.synced ? '已同步' : '待同步'}}</view></view>
+        <view class="progress-ring">{{item.progress}}%</view>
+      </view>
+    </view>
+
+    <view wx:if="{{results.length}}" class="section-title">历史报告</view>
+    <view class="record-list" wx:if="{{results.length}}">
+      <view class="result-row" wx:for="{{results}}" wx:key="resultId">
+        <view class="result-click" data-id="{{item.resultId}}" bindtap="openResult">
+          <view class="record-title">{{item.scaleTitle}}</view>
+          <view class="record-meta">{{item.dateText}} · {{item.itemCount}} 题</view>
+          <view class="score-line">{{item.scoreLine}}</view>
+        </view>
+        <button class="delete-button" data-id="{{item.resultId}}" catchtap="deleteResult" aria-label="删除报告">×</button>
+      </view>
+    </view>
+  </block>
+
+  <view wx:else class="empty-state">
+    <view class="empty-mark">○</view>
+    <view class="empty-title">还没有测试记录</view>
+    <view class="empty-copy">完成一份量表后，报告会出现在这里。</view>
+    <button class="secondary-button empty-action" bindtap="startTest">开始测试</button>
+  </view>
+</view>

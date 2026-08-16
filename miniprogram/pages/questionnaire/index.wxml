@@ -1,0 +1,50 @@
+<view class="question-page">
+  <view class="progress-header">
+    <view class="progress-row">
+      <view class="progress-position">
+        <text>{{currentIndex + 1}} / {{total}}</text>
+        <text wx:if="{{reviewingMissing}}" class="review-badge">补答中</text>
+      </view>
+      <view class="progress-actions">
+        <text>{{progress}}%</text>
+        <button class="missing-trigger {{missingCount === 0 ? 'complete' : ''}}" bindtap="openMissingDrawer">未答 {{missingCount}}</button>
+      </view>
+    </view>
+    <view class="progress-track"><view class="progress-fill" style="width: {{progress}}%"></view></view>
+  </view>
+  <view class="question-body" wx:if="{{question}}">
+    <view class="question-number">题目 {{currentIndex + 1}}</view>
+    <view class="question-text">{{question.text}}</view>
+    <view class="choice-list">
+      <button wx:for="{{choices}}" wx:key="value" class="choice-button {{selected === item.value ? 'selected' : ''}}" data-value="{{item.value}}" bindtap="chooseAnswer">
+        <view class="choice-index">{{item.value}}</view><text>{{item.label}}</text><view class="choice-check">{{selected === item.value ? '✓' : ''}}</view>
+      </button>
+    </view>
+  </view>
+  <view class="question-actions-panel">
+    <view class="question-footer">
+      <button class="nav-button" bindtap="previous" disabled="{{currentIndex === 0}}">上一题</button>
+      <block wx:if="{{!canSubmit}}">
+        <button wx:if="{{!isLast}}" class="nav-button" bindtap="next">下一题</button>
+        <button wx:else class="nav-button missing-action" bindtap="findMissing">查看未答</button>
+      </block>
+      <button wx:else class="submit-button" bindtap="submit">生成报告</button>
+    </view>
+    <button class="restart-button" bindtap="restart">重新开始</button>
+  </view>
+
+  <view wx:if="{{showMissingDrawer}}" class="drawer-mask" catchtap="closeMissingDrawer">
+    <view class="missing-drawer" catchtap="keepDrawerOpen">
+      <view class="drawer-handle"></view>
+      <view class="drawer-header">
+        <view><view class="drawer-title">未回答的题目</view><view class="drawer-subtitle">共 {{missingCount}} 题，点击编号直接补答</view></view>
+        <button class="drawer-close" bindtap="closeMissingDrawer" aria-label="关闭">×</button>
+      </view>
+      <scroll-view class="missing-scroll" style="height: {{missingScrollHeight}}px" scroll-y enhanced show-scrollbar="{{false}}">
+        <view class="missing-grid">
+          <button wx:for="{{missingItems}}" wx:key="index" class="missing-number {{item.isCurrent ? 'current' : ''}}" data-index="{{item.index}}" bindtap="jumpToMissing">{{item.number}}</button>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+</view>

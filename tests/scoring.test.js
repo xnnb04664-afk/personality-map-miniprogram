@@ -1,0 +1,96 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
+const { getScale } = require("../miniprogram/data/scales");
+const { levelFor, validateAnswers, scoreAssessment } = require("../miniprogram/utils/scoring");
+
+const SCALE_IDS = ["ipip-neo-60-zh-local-v1", "ipip-neo-120-zh-v1", "ipip-neo-300-zh-local-v1"];
+
+test("量表题数、ID 和分面映射完整", () => {
+  SCALE_IDS.forEach((scaleId) => {
+    const scale = getScale(scaleId);
+    assert.equal(scale.items.length, scale.itemCount);
+    assert.equal(new Set(scale.items.map((item) => item.id)).size, scale.itemCount);
+    assert.equal(new Set(scale.items.map((item) => item.facet)).size, 30);
+    scale.items.forEach((item) => {
+      assert.match(item.facet, /^[NEOAC][1-6]$/);
+      assert.ok(item.keyed === 1 || item.keyed === -1);
+      assert.ok(item.text.length >= 4);
+    });
+  });
+  const shortScale = getScale("ipip-neo-60-zh-local-v1");
+  const counts = shortScale.items.reduce((result, item) => ({ ...result, [item.facet]: (result[item.facet] || 0) + 1 }), {});
+  Object.values(counts).forEach((count) => assert.equal(count, 2));
+  assert.equal(shortScale.facetReliability, "exploratory");
+});
+
+test("云端计分键与小程序题库保持一致", () => {
+  const source = fs.readFileSync(path.join(__dirname, "../cloudfunctions/assessmentApi/index.js"), "utf8");
+  const match = source.match(/const KEYS = (\{[\s\S]*?\n\});/);
+  assert.ok(match, "云函数中应包含计分键");
+  const cloudKeys = vm.runInNewContext(`(${match[1]})`);
+  const scale = getScale("ipip-neo-300-zh-local-v1");
+  scale.items.forEach((item) => {
+    const round = Number(item.id.split("-").at(-1));
+    assert.equal(cloudKeys[item.facet][round - 1], item.keyed, item.id);
+  });
+
+  const shortMatch = source.match(/const IPIP_NEO_60_KEYS = (\{[\s\S]*?\n\});/);
+  assert.ok(shortMatch, "云函数中应包含 60 题独立计分键");
+  const shortKeys = vm.runInNewContext(`(${shortMatch[1]})`);
+  const shortScale = getScale("ipip-neo-60-zh-local-v1");
+  shortScale.items.forEach((item) => {
+    const round = Number(item.id.split("-").at(-1));
+    assert.equal(shortKeys[item.facet][round - 1], item.keyed, item.id);
+  });
+});
+
+test("60 题版使用官方独立选择而非前两轮截取", () => {
+  const scale = getScale("ipip-neo-60-zh-local-v1");
+  const texts = new Set(scale.items.map((item) => item.text));
+  assert.ok(texts.has("很容易觉得压力大"));
+  assert.ok(texts.has("能顺利处理任务"));
+  assert.ok(texts.has("喜欢井然有序"));
+  assert.ok(texts.has("房间常常很乱"));
+  assert.ok(!texts.has("担心会发生最糟糕的情况"));
+});
+
+test("全选中点得到 50 分和中间水平", () => {
+  SCALE_IDS.forEach((scaleId) => {
+    const scale = getScale(scaleId);
+    const answers = Object.fromEntries(scale.items.map((item) => [item.id, 3]));
+    const result = scoreAssessment(scaleId, answers);
+    assert.equal(result.domains.length, 5);
+    assert.equal(result.facets.length, 30);
+    result.domains.forEach((domain) => assert.equal(domain.score, 50));
+    result.facets.forEach((facet) => assert.equal(facet.score, 50));
+  });
+});
+
+test("正向和反向题按相反方向计分", () => {
+  SCALE_IDS.forEach((scaleId) => {
+    const scale = getScale(scaleId);
+    const answers = Object.fromEntries(scale.items.map((item) => [item.id, item.keyed === 1 ? 5 : 1]));
+    scoreAssessment(scaleId, answers).domains.forEach((domain) => assert.equal(domain.score, 100));
+    const inverse = Object.fromEntries(scale.items.map((item) => [item.id, item.keyed === 1 ? 1 : 5]));
+    scoreAssessment(scaleId, inverse).domains.forEach((domain) => assert.equal(domain.score, 0));
+  });
+});
+
+test("拒绝缺失、越界和未知答案", () => {
+  const scale = getScale(SCALE_IDS[0]);
+  const answers = Object.fromEntries(scale.items.map((item) => [item.id, 3]));
+  delete answers[scale.items[0].id];
+  assert.throws(() => scoreAssessment(scale.id, answers), /INCOMPLETE/);
+  assert.throws(() => validateAnswers(scale, { bad: 3 }), /INVALID/);
+  assert.throws(() => validateAnswers(scale, { [scale.items[0].id]: 6 }), /INVALID/);
+});
+
+test("水平分段边界固定", () => {
+  assert.equal(levelFor(39), "偏低");
+  assert.equal(levelFor(40), "中间");
+  assert.equal(levelFor(60), "中间");
+  assert.equal(levelFor(61), "偏高");
+});

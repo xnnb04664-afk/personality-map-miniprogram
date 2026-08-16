@@ -1,0 +1,20 @@
+.history-page { padding-top: 40rpx; }
+.page-heading { display: flex; align-items: center; justify-content: space-between; }
+.heading-title { font-size: 40rpx; font-weight: 750; }
+.heading-copy { margin-top: 10rpx; color: #74807b; font-size: 24rpx; }
+.clear-button { height: 64rpx; line-height: 64rpx; padding: 0 20rpx; color: #a34747; background: #f8eaea; font-size: 24rpx; font-weight: 500; }
+.record-list { overflow: hidden; border-top: 1rpx solid #dfe5e2; background: #fff; }
+.session-row, .result-row { min-height: 128rpx; border-bottom: 1rpx solid #e3e7e5; }
+.session-row { display: flex; align-items: center; padding: 24rpx 28rpx; }
+.record-main { min-width: 0; flex: 1; }
+.record-title { font-size: 29rpx; font-weight: 700; }
+.record-meta { margin-top: 10rpx; color: #77817d; font-size: 23rpx; }
+.progress-ring { display: flex; align-items: center; justify-content: center; width: 80rpx; height: 80rpx; border: 6rpx solid #d9e9e4; border-radius: 50%; color: #176c5d; font-size: 22rpx; font-weight: 650; }
+.result-row { position: relative; display: flex; align-items: stretch; }
+.result-click { min-width: 0; flex: 1; padding: 26rpx 68rpx 24rpx 28rpx; }
+.score-line { margin-top: 16rpx; overflow: hidden; color: #4f5d58; font-size: 23rpx; text-overflow: ellipsis; white-space: nowrap; }
+.delete-button { position: absolute; top: 20rpx; right: 16rpx; width: 56rpx; height: 56rpx; padding: 0; line-height: 52rpx; color: #929b97; background: transparent; font-size: 38rpx; font-weight: 300; }
+.empty-mark { font-size: 82rpx; color: #92a29c; }
+.empty-title { margin-top: 18rpx; color: #35413d; font-size: 31rpx; font-weight: 700; }
+.empty-copy { margin-top: 14rpx; }
+.empty-action { width: 240rpx; margin: 40rpx auto 0; }

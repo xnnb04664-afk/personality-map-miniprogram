@@ -1,0 +1,39 @@
+<view class="about-page">
+  <view class="about-head">
+    <view class="about-title">量表与隐私</view>
+    <view class="about-lead">透明说明题目从哪里来、分数如何计算，以及你的数据如何保存。</view>
+  </view>
+
+  <view class="about-section">
+    <view class="section-heading">量表来源</view>
+    <view class="about-copy">本产品使用 International Personality Item Pool（IPIP）的公有领域题目。IPIP 允许为商业或非商业目的复制、修改和翻译。</view>
+    <view class="source-row" data-url="https://ipip.ori.org/" bindtap="copySource"><view><view class="source-title">IPIP 官方网站</view><view class="source-url">ipip.ori.org</view></view><text>复制</text></view>
+    <view class="source-row" data-url="https://ipip.ori.org/newPermission.htm" bindtap="copySource"><view><view class="source-title">IPIP 使用许可</view><view class="source-url">公有领域说明</view></view><text>复制</text></view>
+  </view>
+
+  <view class="about-section">
+    <view class="section-heading">版本说明</view>
+    <view class="about-copy">60 题版基于 Maples-Keller 等人（2019）的 IPIP-NEO-60；120 题版基于 Johnson（2014）的 IPIP-NEO-120，并参考 IPIP 官方登记的普通话翻译。300 题版基于 Goldberg（1999）的公开量表表示。</view>
+    <view class="about-copy">60 题版主要用于五维测量。其 30 个分面各由两道题估计，只作为探索参考，不应与长版分面的稳定性等同。</view>
+    <view class="notice">政治、宗教和刑罚等文化敏感题已替换为中性的价值开放题项，因此这里提供的是中文本地化版，不是受版权保护的正式 NEO-PI-R，也不宣称与原版具有完全相同的效度。</view>
+  </view>
+
+  <view class="about-section">
+    <view class="section-heading">计分方法</view>
+    <view class="about-copy">每题按 1–5 分计分，反向题使用 6 减去所选答案。分面与维度分数转换到 0–100 的量表位置：0–39 为偏低，40–60 为中间，61–100 为偏高。</view>
+    <view class="notice">这些数字不是人群百分位。我们没有使用未经说明的中国常模，也不会用分数给人格贴上好坏标签。</view>
+  </view>
+
+  <view class="about-section">
+    <view class="section-heading">数据与隐私</view>
+    <view class="privacy-row"><text>当前保存方式</text><text class="privacy-value">{{cloudEnabled ? '本机 + 微信云端' : '仅本机'}}</text></view>
+    <view class="about-copy">应用不收集昵称、头像、手机号、邮箱、年龄或性别。启用云环境后，通过云函数取得的 OpenID 只用于隔离你自己的进度和报告，不会显示或分享。</view>
+    <view class="about-copy">海报只包含五维摘要；微信转发只分享小程序入口，不携带报告 ID和完整答案。</view>
+    <button class="delete-all" bindtap="clearAll">删除我的全部数据</button>
+  </view>
+
+  <view class="about-section last-section">
+    <view class="section-heading">使用边界</view>
+    <view class="about-copy">人格特质描述的是倾向，不是固定身份。本产品面向 18 岁以上用户进行非临床自我探索，不可替代专业评估，也不应用于医疗诊断、招聘筛选、升学或其他重大决策。</view>
+  </view>
+</view>
