@@ -174,6 +174,25 @@ test("确定性结果错误会标记同步失败且不再反复空推", async ()
   assert.equal(cloudCalls.some((call) => call.action === "completeSession"), false);
 });
 
+test("AI 解读请求只携带报告 ID并将成功内容缓存到本地报告", async () => {
+  const resultId = "ai-result-1";
+  storage.saveResult({ resultId, scaleId: "ipip-neo-60-zh-local-v1", synced: true, completedAt: 1, domains: [] });
+  wx.cloud.callFunction = ({ data }) => {
+    cloudCalls.push(data);
+    assert.deepEqual(Object.keys(data).sort(), ["action", "resultId"]);
+    assert.equal(data.action, "generateAiInsight");
+    assert.equal(data.resultId, resultId);
+    return Promise.resolve({ result: { ok: true, data: {
+      aiInsight: { title: "示例标题" }, aiInsightVersion: 1, aiGeneratedAt: 2, aiStatus: { state: "ready" },
+    } } });
+  };
+
+  const result = await assessment.generateAiInsight(resultId);
+  assert.equal(result.aiInsight.title, "示例标题");
+  assert.equal(storage.getResult(resultId).aiInsightVersion, 1);
+  assert.equal(Object.hasOwn(cloudCalls[0], "answers"), false);
+});
+
 test("同答题数会使用服务端版本时间解决会话冲突", async () => {
   const scaleId = "ipip-neo-60-zh-local-v1";
   storage.saveSession({

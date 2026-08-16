@@ -34,3 +34,30 @@ test("结果使用用户隔离的确定性文档 ID 实现幂等写入", () => {
   assert.match(source, /scopedDocumentId\(openid, "result", input\.resultId\)/);
   assert.match(source, /crypto\.createHash\("sha256"\)/);
 });
+
+test("AI 只接受 resultId 并由云端按 OpenID 读取分数", () => {
+  assert.match(source, /case "generateAiInsight": data = await generateAiInsight\(OPENID, event\.resultId\)/);
+  assert.match(source, /where\(\{ _openid: openid, resultId \}\)\.limit\(1\)\.get\(\)/);
+  assert.match(source, /function scorePayload\(result\)/);
+  assert.doesNotMatch(source, /generateAiInsight\(OPENID, event\.(domains|answers|scores)/);
+  assert.match(source, /process\.env\.DEEPSEEK_API_KEY/);
+});
+
+test("AI 生成使用事务锁、失败冷却和成功缓存", () => {
+  assert.match(source, /const AI_LOCK_MS = 2 \* 60 \* 1000/);
+  assert.match(source, /const AI_RETRY_MS = 30 \* 1000/);
+  assert.match(source, /db\.runTransaction/);
+  assert.match(source, /AI_GENERATION_IN_PROGRESS/);
+  assert.match(source, /if \(doc\.aiInsight\) return aiResponse\(doc\)/);
+  assert.match(source, /aiInsightVersion: AI_INSIGHT_VERSION/);
+});
+
+test("AI 输出经固定结构校验与微信内容安全检查后才缓存", () => {
+  assert.match(source, /function validateAiInsight/);
+  assert.match(source, /value\.keyTraits\.length !== 3/);
+  assert.match(source, /requireThreeStrings\(value\.strengths/);
+  assert.match(source, /requireThreeStrings\(value\.watchouts/);
+  assert.match(source, /requireThreeStrings\(value\.actions/);
+  assert.match(source, /cloud\.openapi\.security\.msgSecCheck/);
+  assert.ok(source.indexOf("await checkAiContent(openid, insight)") < source.indexOf("cacheAiInsight(doc._id"));
+});

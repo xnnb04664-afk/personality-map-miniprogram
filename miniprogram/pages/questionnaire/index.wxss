@@ -234,7 +234,7 @@ page {
 
 .question-footer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 80rpx minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 170rpx minmax(0, 1fr);
   gap: 12rpx;
 }
 
@@ -267,15 +267,25 @@ page {
 }
 
 .reset-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
   width: 100%;
   min-height: 88rpx;
-  padding: 0;
-  border: 2rpx solid #d5dedb;
-  color: #43514c;
-  background: #f2f5f4;
-  font-size: 25rpx;
-  font-weight: 650;
+  padding: 0 8rpx;
+  border: 2rpx solid #dfb4b4;
+  color: #a13f3f;
+  background: #fff1f1;
+  font-size: 22rpx;
+  font-weight: 700;
   line-height: 88rpx;
+}
+
+.reset-mark {
+  flex: none;
+  font-size: 31rpx;
+  font-weight: 500;
 }
 
 .drawer-mask {

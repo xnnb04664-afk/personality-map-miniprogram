@@ -3,6 +3,7 @@ const { getScale } = require("../data/scales");
 const { validateAnswers, scoreAssessment } = require("../utils/scoring");
 
 const CLOUD_TIMEOUT_MS = 12000;
+const AI_CLOUD_TIMEOUT_MS = 32000;
 const PERMANENT_RESULT_ERRORS = new Set([
   "INVALID_RESULT", "INVALID_ANSWERS", "INVALID_ANSWER_VALUE", "INCOMPLETE_ANSWERS", "INVALID_SCORES", "SCORE_MISMATCH",
 ]);
@@ -18,10 +19,10 @@ function cloudEnabled() {
   }
 }
 
-async function callCloud(action, data = {}) {
+async function callCloud(action, data = {}, timeoutMs = CLOUD_TIMEOUT_MS) {
   if (!cloudEnabled()) throw new Error("CLOUD_DISABLED");
   const response = await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("CLOUD_REQUEST_TIMEOUT")), CLOUD_TIMEOUT_MS);
+    const timeout = setTimeout(() => reject(new Error("CLOUD_REQUEST_TIMEOUT")), timeoutMs);
     Promise.resolve().then(() => wx.cloud.callFunction({
       name: "assessmentApi",
       data: { action, ...data },
@@ -257,6 +258,33 @@ async function getResult(resultId) {
   return null;
 }
 
+async function generateAiInsight(resultId) {
+  if (!cloudEnabled()) throw new Error("CLOUD_DISABLED");
+  let result = storage.getResult(resultId);
+  if (!result) result = await getResult(resultId);
+  if (!result) throw new Error("INVALID_RESULT_ID");
+  if (result.aiInsight) return result;
+
+  if (!result.synced || result.syncBlocked) {
+    await syncAll();
+    result = storage.getResult(resultId);
+  }
+  if (!result || !result.synced || result.syncBlocked) throw new Error("AI_RESULT_NOT_SYNCED");
+
+  const generated = await callCloud("generateAiInsight", { resultId }, AI_CLOUD_TIMEOUT_MS);
+  const current = storage.getResult(resultId) || result;
+  const updated = {
+    ...current,
+    aiInsight: generated.aiInsight,
+    aiInsightVersion: generated.aiInsightVersion,
+    aiGeneratedAt: generated.aiGeneratedAt,
+    aiStatus: generated.aiStatus || { state: "ready" },
+    synced: true,
+  };
+  storage.saveResult(updated);
+  return updated;
+}
+
 async function deleteResult(resultId) {
   const shouldSync = cloudEnabled();
   storage.removeResult(resultId, shouldSync);
@@ -285,6 +313,7 @@ module.exports = {
   completeSession,
   syncAll,
   getResult,
+  generateAiInsight,
   deleteResult,
   deleteAll,
 };

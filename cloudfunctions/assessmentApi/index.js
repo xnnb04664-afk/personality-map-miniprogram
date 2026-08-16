@@ -1,5 +1,6 @@
 const cloud = require("wx-server-sdk");
 const crypto = require("crypto");
+const https = require("https");
 const SCALE_CONFIG = require("./scale-keys.json");
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
@@ -7,6 +8,10 @@ const db = cloud.database();
 const SESSION_COLLECTION = "assessment_sessions";
 const RESULT_COLLECTION = "assessment_results";
 const RESULT_PAGE_SIZE = 50;
+const AI_INSIGHT_VERSION = 1;
+const AI_LOCK_MS = 2 * 60 * 1000;
+const AI_RETRY_MS = 30 * 1000;
+const AI_REQUEST_TIMEOUT_MS = 25 * 1000;
 
 const FACETS = SCALE_CONFIG.facets;
 const SCALE_DEFS = {};
@@ -89,6 +94,249 @@ function verifyScores(scaleId, answers, domains) {
       if (calculated.facets[facet.id] !== facet.score) throw new Error("SCORE_MISMATCH");
     });
   });
+}
+
+function requireText(value, field, minLength, maxLength) {
+  if (typeof value !== "string") throw new Error("AI_INVALID_RESPONSE");
+  const text = value.trim();
+  if (text.length < minLength || text.length > maxLength) throw new Error("AI_INVALID_RESPONSE");
+  return text;
+}
+
+function requireThreeStrings(value, field, maxLength) {
+  if (!Array.isArray(value) || value.length !== 3) throw new Error("AI_INVALID_RESPONSE");
+  return value.map((item, index) => requireText(item, `${field}.${index}`, 4, maxLength));
+}
+
+function validateAiInsight(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("AI_INVALID_RESPONSE");
+  if (!Array.isArray(value.keyTraits) || value.keyTraits.length !== 3) throw new Error("AI_INVALID_RESPONSE");
+  if (!value.contexts || typeof value.contexts !== "object" || Array.isArray(value.contexts)) throw new Error("AI_INVALID_RESPONSE");
+  const insight = {
+    title: requireText(value.title, "title", 4, 48),
+    overview: requireText(value.overview, "overview", 30, 700),
+    keyTraits: value.keyTraits.map((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error("AI_INVALID_RESPONSE");
+      return {
+        name: requireText(item.name, "keyTraits.name", 2, 32),
+        evidence: requireText(item.evidence, "keyTraits.evidence", 8, 180),
+      };
+    }),
+    strengths: requireThreeStrings(value.strengths, "strengths", 150),
+    watchouts: requireThreeStrings(value.watchouts, "watchouts", 150),
+    contexts: {
+      relationships: requireText(value.contexts.relationships, "contexts.relationships", 10, 260),
+      workStudy: requireText(value.contexts.workStudy, "contexts.workStudy", 10, 260),
+      stress: requireText(value.contexts.stress, "contexts.stress", 10, 260),
+    },
+    actions: requireThreeStrings(value.actions, "actions", 160),
+  };
+  const allText = JSON.stringify(insight);
+  if (allText.length > 4200) throw new Error("AI_INVALID_RESPONSE");
+  const prohibited = [
+    /确诊|诊断为|诊断结论/,
+    /治疗方案|治疗建议|用药建议|服药/,
+    /固定人格类型|人格类型是|属于.{0,8}型人格|[A-Z]{4}型人格/i,
+    /人群百分位|第\s*\d+\s*百分位|超过\s*\d+\s*%\s*的人/,
+    /(招聘|录用|升学).{0,16}(适合|不适合|建议|决定|结论)/,
+    /(适合|不适合).{0,10}(职业|岗位|专业)/,
+  ];
+  if (prohibited.some((pattern) => pattern.test(allText))) throw new Error("AI_INVALID_RESPONSE");
+  return insight;
+}
+
+function scorePayload(result) {
+  return {
+    scaleId: result.scaleId,
+    scaleVersion: result.scaleVersion,
+    domains: (result.domains || []).map((domain) => ({
+      id: domain.id,
+      score: domain.score,
+      facets: (domain.facets || []).map((facet) => ({ id: facet.id, score: facet.score })),
+    })),
+  };
+}
+
+function deepSeekMessages(result) {
+  const system = [
+    "你是严谨、中性的人格量表报告撰写助手。只依据给定的大五维度与分面分数进行描述，不猜测用户身份或经历。",
+    "分数是0到100的量表位置，不是人群百分位。不得给出心理诊断、治疗或用药建议，不得定义固定人格类型，不得作招聘、升学、岗位或职业适配结论。",
+    "避免好坏评判和绝对断言，使用可能、倾向、在某些情境下等措辞。行动建议必须具体、低风险且可自行尝试。",
+    "只输出一个JSON对象，不要Markdown。结构必须是：title字符串；overview字符串；keyTraits为3个{name,evidence}；strengths为3个字符串；watchouts为3个字符串；contexts包含relationships、workStudy、stress三个字符串；actions为3个字符串。",
+  ].join("\n");
+  return [
+    { role: "system", content: system },
+    { role: "user", content: JSON.stringify(scorePayload(result)) },
+  ];
+}
+
+function requestDeepSeek(result, apiKey) {
+  const body = JSON.stringify({
+    model: "deepseek-chat",
+    messages: deepSeekMessages(result),
+    response_format: { type: "json_object" },
+    stream: false,
+    temperature: 0.2,
+    max_tokens: 1800,
+  });
+  return new Promise((resolve, reject) => {
+    const request = https.request("https://api.deepseek.com/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(body),
+      },
+    }, (response) => {
+      let raw = "";
+      response.setEncoding("utf8");
+      response.on("data", (chunk) => {
+        raw += chunk;
+        if (raw.length > 256000) request.destroy(new Error("AI_SERVICE_ERROR"));
+      });
+      response.on("end", () => {
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          reject(new Error("AI_SERVICE_ERROR"));
+          return;
+        }
+        try {
+          const parsed = JSON.parse(raw);
+          const content = parsed && parsed.choices && parsed.choices[0] && parsed.choices[0].message && parsed.choices[0].message.content;
+          if (typeof content !== "string") throw new Error("AI_INVALID_RESPONSE");
+          resolve(content);
+        } catch (error) {
+          reject(new Error(error.message === "AI_INVALID_RESPONSE" ? error.message : "AI_INVALID_RESPONSE"));
+        }
+      });
+    });
+    request.setTimeout(AI_REQUEST_TIMEOUT_MS, () => request.destroy(new Error("AI_REQUEST_TIMEOUT")));
+    request.on("error", (error) => reject(new Error(error.message === "AI_REQUEST_TIMEOUT" ? "AI_REQUEST_TIMEOUT" : "AI_SERVICE_ERROR")));
+    request.write(body);
+    request.end();
+  });
+}
+
+async function checkAiContent(openid, insight) {
+  const content = [
+    insight.title,
+    insight.overview,
+    ...insight.keyTraits.flatMap((item) => [item.name, item.evidence]),
+    ...insight.strengths,
+    ...insight.watchouts,
+    insight.contexts.relationships,
+    insight.contexts.workStudy,
+    insight.contexts.stress,
+    ...insight.actions,
+  ].join("\n");
+  for (let offset = 0; offset < content.length; offset += 1800) {
+    let checked;
+    try {
+      checked = await cloud.openapi.security.msgSecCheck({ content: content.slice(offset, offset + 1800), version: 2, scene: 2, openid });
+    } catch (error) {
+      throw new Error("AI_CONTENT_CHECK_FAILED");
+    }
+    if (!checked || !checked.result || checked.result.suggest !== "pass") throw new Error("AI_CONTENT_REJECTED");
+  }
+}
+
+function aiResponse(result) {
+  return {
+    aiInsight: result.aiInsight,
+    aiInsightVersion: result.aiInsightVersion,
+    aiGeneratedAt: result.aiGeneratedAt,
+    aiStatus: result.aiStatus || { state: "ready" },
+  };
+}
+
+function assertAiGenerationAvailable(result, now) {
+  if (result.aiInsight) return;
+  const status = result.aiStatus || {};
+  if (status.state === "generating" && now - Number(status.lockedAt || 0) < AI_LOCK_MS) throw new Error("AI_GENERATION_IN_PROGRESS");
+  if (status.state === "failed" && Number(status.retryAfter || 0) > now) throw new Error("AI_RETRY_LATER");
+}
+
+async function acquireAiLock(doc) {
+  const now = Date.now();
+  const token = crypto.randomBytes(16).toString("hex");
+  let cached = null;
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.collection(RESULT_COLLECTION).doc(doc._id).get();
+    const current = snapshot.data;
+    if (!current || current._openid !== doc._openid || current.resultId !== doc.resultId) throw new Error("INVALID_RESULT_ID");
+    if (current.aiInsight) {
+      cached = current;
+      return;
+    }
+    assertAiGenerationAvailable(current, now);
+    await transaction.collection(RESULT_COLLECTION).doc(doc._id).update({ data: { aiStatus: { state: "generating", lockedAt: now, token } } });
+  });
+  return { token, cached };
+}
+
+async function markAiFailure(docId, token, errorCode) {
+  const now = Date.now();
+  try {
+    await db.runTransaction(async (transaction) => {
+      const snapshot = await transaction.collection(RESULT_COLLECTION).doc(docId).get();
+      const current = snapshot.data;
+      if (!current || !current.aiStatus || current.aiStatus.token !== token) return;
+      await transaction.collection(RESULT_COLLECTION).doc(docId).update({
+        data: { aiStatus: { state: "failed", failedAt: now, retryAfter: now + AI_RETRY_MS, error: errorCode } },
+      });
+    });
+  } catch (error) {
+    console.error("markAiFailure", error.message);
+  }
+}
+
+async function cacheAiInsight(docId, token, insight) {
+  const generatedAt = Date.now();
+  let stored;
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.collection(RESULT_COLLECTION).doc(docId).get();
+    const current = snapshot.data;
+    if (!current) throw new Error("INVALID_RESULT_ID");
+    if (current.aiInsight) {
+      stored = current;
+      return;
+    }
+    if (!current.aiStatus || current.aiStatus.token !== token) throw new Error("AI_GENERATION_IN_PROGRESS");
+    const fields = {
+      aiInsight: insight,
+      aiInsightVersion: AI_INSIGHT_VERSION,
+      aiGeneratedAt: generatedAt,
+      aiStatus: { state: "ready", generatedAt },
+    };
+    await transaction.collection(RESULT_COLLECTION).doc(docId).update({ data: fields });
+    stored = { ...current, ...fields };
+  });
+  return stored;
+}
+
+async function generateAiInsight(openid, resultId) {
+  if (typeof resultId !== "string" || !resultId) throw new Error("INVALID_RESULT_ID");
+  const apiKey = String(process.env.DEEPSEEK_API_KEY || "").trim();
+  if (!apiKey) throw new Error("AI_NOT_CONFIGURED");
+  const response = await db.collection(RESULT_COLLECTION).where({ _openid: openid, resultId }).limit(1).get();
+  if (!response.data.length) throw new Error("INVALID_RESULT_ID");
+  const doc = response.data[0];
+  if (doc.aiInsight) return aiResponse(doc);
+  const lock = await acquireAiLock(doc);
+  if (lock.cached) return aiResponse(lock.cached);
+
+  try {
+    const raw = await requestDeepSeek(doc, apiKey);
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch (error) { throw new Error("AI_INVALID_RESPONSE"); }
+    const insight = validateAiInsight(parsed);
+    await checkAiContent(openid, insight);
+    return aiResponse(await cacheAiInsight(doc._id, lock.token, insight));
+  } catch (error) {
+    const code = String(error && error.message || "AI_SERVICE_ERROR");
+    await markAiFailure(doc._id, lock.token, code);
+    const publicErrors = new Set(["AI_INVALID_RESPONSE", "AI_CONTENT_REJECTED", "AI_CONTENT_CHECK_FAILED", "AI_REQUEST_TIMEOUT", "AI_GENERATION_IN_PROGRESS"]);
+    throw new Error(publicErrors.has(code) ? code : "AI_SERVICE_ERROR");
+  }
 }
 
 function cleanDoc(doc) {
@@ -215,7 +463,13 @@ async function completeSession(openid, input) {
     serverUpdatedAt: Date.now(),
   };
   const existing = await db.collection(RESULT_COLLECTION).where({ _openid: openid, resultId: input.resultId }).limit(1).get();
-  if (existing.data.length) await db.collection(RESULT_COLLECTION).doc(existing.data[0]._id).set({ data: result });
+  if (existing.data.length) {
+    const current = existing.data[0];
+    ["aiInsight", "aiInsightVersion", "aiGeneratedAt", "aiStatus"].forEach((field) => {
+      if (current[field] !== undefined) result[field] = current[field];
+    });
+    await db.collection(RESULT_COLLECTION).doc(current._id).set({ data: result });
+  }
   else {
     const documentId = scopedDocumentId(openid, "result", input.resultId);
     await db.collection(RESULT_COLLECTION).doc(documentId).set({ data: result });
@@ -256,6 +510,7 @@ exports.main = async (event) => {
       case "completeSession": data = await completeSession(OPENID, event.result); break;
       case "getResult": data = await getResult(OPENID, event.resultId); break;
       case "listResults": data = await listStoredResults(OPENID, event.offset); break;
+      case "generateAiInsight": data = await generateAiInsight(OPENID, event.resultId); break;
       case "deleteResult": data = await deleteResult(OPENID, event.resultId); break;
       case "deleteAll": data = await deleteAll(OPENID); break;
       default: throw new Error("UNKNOWN_ACTION");

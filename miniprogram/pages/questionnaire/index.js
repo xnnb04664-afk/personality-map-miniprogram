@@ -151,7 +151,7 @@ Page({
   },
   restart() {
     this.clearAdvanceTimer();
-    wx.showModal({ title: "重新开始", content: "已填写的答案将全部清除。", confirmColor: "#187A68", success: ({ confirm }) => {
+    wx.showModal({ title: "重新开始当前测试", content: "当前量表已填写的全部答案都会被清除，此操作无法撤销。", confirmText: "确认重开", confirmColor: "#B54848", success: ({ confirm }) => {
       if (confirm) {
         this.reviewingMissing = false;
         this.session = assessment.getOrCreateSession(this.scale.id, true);

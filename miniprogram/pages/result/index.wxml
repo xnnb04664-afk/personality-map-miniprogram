@@ -2,42 +2,93 @@
 <view wx:else class="result-page">
   <view class="report-head">
     <view class="report-eyebrow">{{result.scaleTitle}} · {{result.itemCount}} 题</view>
-    <view class="report-title">你的人格图谱</view>
+    <view class="report-title">{{profileTitle}}</view>
+    <view class="profile-caption">描述你的突出倾向，不代表固定人格类型</view>
     <view class="report-date">完成于 {{dateText}} · {{syncText}}</view>
     <view class="report-note">分数表示你在量表两端之间的位置，不是超过多少人的百分位。</view>
   </view>
 
-  <view class="report-section overview-section">
-    <view class="section-heading">五维概览</view>
-    <view class="domain-overview" wx:for="{{result.domains}}" wx:key="id">
-      <view class="domain-overview-meta"><text>{{item.name}}</text><text style="color: {{item.color}}">{{item.score}} · {{item.level}}</text></view>
-      <view class="domain-track"><view class="domain-fill" style="width: {{item.score}}%; background: {{item.color}}"></view></view>
-    </view>
+  <view class="report-tabs" role="tablist">
+    <button class="report-tab {{activeView === 'overview' ? 'active' : ''}}" data-view="overview" bindtap="selectReportView">概览</button>
+    <button class="report-tab {{activeView === 'domains' ? 'active' : ''}}" data-view="domains" bindtap="selectReportView">五维</button>
+    <button class="report-tab {{activeView === 'facets' ? 'active' : ''}}" data-view="facets" bindtap="selectReportView">分面</button>
   </view>
 
-  <view wx:if="{{result.facetReliability === 'exploratory'}}" class="short-facet-notice">
-    <view class="short-notice-title">短版分面说明</view>
-    <view>60 题版的每个分面仅由两道题估计，适合发现探索方向；请以五个核心维度作为主要结论。</view>
-  </view>
-
-  <view class="report-section domain-section" wx:for="{{result.domains}}" wx:key="id">
-    <view class="domain-heading">
-      <view><view class="domain-name">{{item.name}}</view><view class="domain-english">{{item.english}}</view></view>
-      <view class="domain-score" style="color: {{item.color}}">{{item.score}}</view>
-    </view>
-    <view class="domain-summary">{{item.summary}}</view>
-    <view class="insight-grid">
-      <view class="insight"><view class="insight-label">可用优势</view><view>{{item.strength}}</view></view>
-      <view class="insight"><view class="insight-label">值得留意</view><view>{{item.watch}}</view></view>
-    </view>
-    <view class="action-line"><text class="action-label">一个行动</text>{{item.action}}</view>
-    <view class="facet-list">
-      <view class="facet-row" wx:for="{{item.facets}}" wx:key="id" wx:for-item="facet">
-        <view class="facet-copy"><view class="facet-name">{{facet.name}}</view><view class="facet-description">{{facet.description}}</view></view>
-        <view class="facet-value"><view>{{facet.score}}</view><view class="facet-level">{{facet.level}}</view></view>
+  <block wx:if="{{activeView === 'overview'}}">
+    <view class="report-section radar-section">
+      <view class="section-heading">五维图谱</view>
+      <canvas type="2d" id="radarCanvas" class="radar-canvas"></canvas>
+      <view class="domain-overview" wx:for="{{result.domains}}" wx:key="id">
+        <view class="domain-overview-meta"><text>{{item.name}}</text><text style="color: {{item.color}}">{{item.score}} · {{item.level}}</text></view>
+        <view class="domain-track"><view class="domain-fill" style="width: {{item.score}}%; background: {{item.color}}"></view></view>
       </view>
     </view>
-  </view>
+
+    <view class="report-section prominent-section">
+      <view class="section-heading">突出倾向</view>
+      <view class="prominent-row" wx:for="{{prominentTraits}}" wx:key="id">
+        <view class="prominent-rank">{{index + 1}}</view>
+        <view class="prominent-copy"><view class="prominent-name">{{item.name}} · {{item.score}}</view><view>{{item.phrase}}</view></view>
+      </view>
+    </view>
+
+    <view class="report-section ai-section">
+      <view class="section-heading">AI 深度解读</view>
+      <block wx:if="{{aiInsight}}">
+        <view class="ai-title">{{aiInsight.title}}</view>
+        <view class="ai-overview">{{aiInsight.overview}}</view>
+        <view class="ai-subheading">核心倾向</view>
+        <view class="ai-evidence" wx:for="{{aiInsight.keyTraits}}" wx:key="name">
+          <view class="ai-evidence-name">{{item.name}}</view><view>{{item.evidence}}</view>
+        </view>
+        <view class="ai-columns">
+          <view class="ai-column"><view class="ai-subheading">可用优势</view><view class="ai-list-item" wx:for="{{aiInsight.strengths}}" wx:key="*this">{{index + 1}}. {{item}}</view></view>
+          <view class="ai-column"><view class="ai-subheading">可能盲点</view><view class="ai-list-item" wx:for="{{aiInsight.watchouts}}" wx:key="*this">{{index + 1}}. {{item}}</view></view>
+        </view>
+        <view class="ai-subheading">不同情境</view>
+        <view class="context-row"><text>人际关系</text><view>{{aiInsight.contexts.relationships}}</view></view>
+        <view class="context-row"><text>工作学习</text><view>{{aiInsight.contexts.workStudy}}</view></view>
+        <view class="context-row"><text>压力应对</text><view>{{aiInsight.contexts.stress}}</view></view>
+        <view class="ai-subheading">可以尝试</view>
+        <view class="action-list"><view class="action-item" wx:for="{{aiInsight.actions}}" wx:key="*this"><text>{{index + 1}}</text><view>{{item}}</view></view></view>
+        <view class="ai-disclaimer">AI 仅依据量表分数生成辅助解读，不构成心理诊断或重大决策建议。</view>
+      </block>
+      <block wx:else>
+        <view class="ai-intro">在五维和分面分数基础上，生成一份涵盖优势、盲点、人际、工作学习与压力应对的个性化解读。</view>
+        <view wx:if="{{aiError}}" class="ai-error">{{aiError}}</view>
+        <button class="ai-generate" bindtap="generateAiInsight" loading="{{aiLoading}}" disabled="{{aiLoading || !cloudAvailable}}">{{aiButtonText}}</button>
+        <view class="ai-privacy">仅发送量表名称和分数，不发送逐题答案或身份信息。</view>
+      </block>
+    </view>
+  </block>
+
+  <block wx:if="{{activeView === 'domains'}}">
+    <view class="report-section view-intro"><view class="section-heading">五个核心维度</view><view>点击维度展开解释。分数高低表示倾向方向，不代表能力或好坏。</view></view>
+    <view class="domain-detail" wx:for="{{result.domains}}" wx:key="id">
+      <view class="domain-toggle" data-id="{{item.id}}" bindtap="toggleDomain">
+        <view><view class="domain-name">{{item.name}}</view><view class="domain-english">{{item.english}}</view></view>
+        <view class="domain-toggle-score" style="color: {{item.color}}">{{item.score}}<text>{{expandedDomain === item.id ? '−' : '+'}}</text></view>
+      </view>
+      <view class="domain-track detail-track"><view class="domain-fill" style="width: {{item.score}}%; background: {{item.color}}"></view></view>
+      <view wx:if="{{expandedDomain === item.id}}" class="domain-expanded">
+        <view class="domain-summary">{{item.summary}}</view>
+        <view class="insight-row"><text>可用优势</text><view>{{item.strength}}</view></view>
+        <view class="insight-row"><text>值得留意</text><view>{{item.watch}}</view></view>
+        <view class="insight-row action"><text>一个行动</text><view>{{item.action}}</view></view>
+      </view>
+    </view>
+  </block>
+
+  <block wx:if="{{activeView === 'facets'}}">
+    <view wx:if="{{result.facetReliability === 'exploratory'}}" class="short-facet-notice"><view class="short-notice-title">短版分面说明</view><view>60 题版的每个分面仅由两道题估计，请以五个核心维度作为主要结论。</view></view>
+    <view class="report-section view-intro"><view class="section-heading">30 个人格分面</view><view>分面用于理解每个维度内部的差异，点击五维页可查看整体解释。</view></view>
+    <view class="facet-group" wx:for="{{result.domains}}" wx:key="id" wx:for-item="domain">
+      <view class="facet-group-title"><text>{{domain.name}}</text><text style="color: {{domain.color}}">{{domain.score}}</text></view>
+      <view class="facet-row" wx:for="{{domain.facets}}" wx:key="id" wx:for-item="facet">
+        <view class="facet-copy"><view class="facet-line"><text>{{facet.name}}</text><text>{{facet.score}} · {{facet.level}}</text></view><view class="facet-description">{{facet.description}}</view><view class="facet-track"><view style="width: {{facet.score}}%; background: {{domain.color}}"></view></view></view>
+      </view>
+    </view>
+  </block>
 
   <view class="report-actions">
     <button class="primary-button" bindtap="savePoster">保存摘要海报</button>
