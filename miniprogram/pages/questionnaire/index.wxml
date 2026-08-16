@@ -19,8 +19,8 @@
         <view class="question-text">{{question.text}}</view>
       </scroll-view>
     </view>
-    <view class="choice-list">
-      <button wx:for="{{choices}}" wx:key="value" class="choice-button {{selected === item.value ? 'selected' : ''}}" style="height: {{choiceHeight}}px; min-height: {{choiceHeight}}px;" data-value="{{item.value}}" bindtap="chooseAnswer">
+    <view class="choice-list" style="width: {{choiceWidth}}px;">
+      <button wx:for="{{choices}}" wx:key="value" class="choice-button {{selected === item.value ? 'selected' : ''}}" style="width: {{choiceWidth}}px; height: {{choiceHeight}}px; min-height: {{choiceHeight}}px;" data-value="{{item.value}}" bindtap="chooseAnswer">
         <view class="choice-index">{{item.value}}</view><text class="choice-label">{{item.label}}</text><view class="choice-check">{{selected === item.value ? '✓' : ''}}</view>
       </button>
     </view>
@@ -28,7 +28,7 @@
   <view class="question-actions-panel">
     <view class="question-footer">
       <button class="nav-button" bindtap="previous" disabled="{{currentIndex === 0}}">上一题</button>
-      <button class="restart-icon" bindtap="restart" aria-label="重新开始">↻</button>
+      <button class="reset-button" bindtap="restart" aria-label="重新开始">重置</button>
       <block wx:if="{{!canSubmit}}">
         <button wx:if="{{!isLast}}" class="nav-button" bindtap="next">下一题</button>
         <button wx:else class="nav-button missing-action" bindtap="findMissing">查看未答</button>

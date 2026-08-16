@@ -39,12 +39,13 @@ test("答题页使用单屏布局并只让长题文区域滚动", () => {
   const template = fs.readFileSync(path.join(__dirname, "../miniprogram/pages/questionnaire/index.wxml"), "utf8");
   const styles = fs.readFileSync(path.join(__dirname, "../miniprogram/pages/questionnaire/index.wxss"), "utf8");
   assert.match(template, /class="question-text-scroll"\s+scroll-y/);
-  assert.match(template, /class="restart-icon"/);
+  assert.match(template, /class="reset-button"[^>]*>重置<\/button>/);
   assert.match(styles, /\.question-page\s*\{[\s\S]*?height:\s*100vh;[\s\S]*?overflow:\s*hidden;/);
   assert.match(styles, /\.question-body\s*\{[\s\S]*?min-height:\s*0;[\s\S]*?overflow:\s*hidden;/);
   assert.match(styles, /\.choice-list\s*\{[\s\S]*?flex:\s*1;[\s\S]*?min-height:\s*0;/);
   assert.match(template, /class="choice-label"/);
   assert.match(styles, /\.choice-label\s*\{[\s\S]*?min-width:\s*0;[\s\S]*?white-space:\s*normal;/);
+  assert.match(styles, /\.choice-button\s*\{[\s\S]*?grid-template-columns:\s*60rpx minmax\(0, 1fr\) 38rpx;/);
   assert.match(styles, /\.scroll-mode\s*\{[\s\S]*?overflow:\s*visible;/);
 });
 
@@ -53,6 +54,7 @@ test("不同屏幕高度会放大选项或自动启用滚动兜底", () => {
   [[320, 568], [375, 667], [390, 844], [430, 932]].forEach(([windowWidth, windowHeight]) => {
     page.configureLayout({ windowWidth, windowHeight, screenHeight: windowHeight, safeArea: { bottom: windowHeight } });
     assert.equal(page.data.scrollMode, false, `${windowWidth}x${windowHeight}`);
+    assert.ok(page.data.choiceWidth >= windowWidth * 0.9, `${windowWidth}x${windowHeight}`);
     assert.ok(page.data.choiceHeight >= 52, `${windowWidth}x${windowHeight}`);
   });
   assert.ok(page.data.choiceHeight >= 120, "高屏选项应充分利用纵向空间");

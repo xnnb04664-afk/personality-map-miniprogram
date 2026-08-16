@@ -83,6 +83,7 @@ page {
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  width: 100%;
   overflow: hidden;
   padding: 22rpx 4rpx 18rpx;
 }
@@ -119,17 +120,23 @@ page {
 .choice-list {
   display: flex;
   flex: 1;
+  align-self: stretch;
   flex-direction: column;
   min-height: 0;
+  max-width: 100%;
   gap: 12rpx;
   margin-top: 12rpx;
 }
 
 .choice-button {
-  display: flex;
+  display: grid;
   flex: none;
+  grid-template-columns: 60rpx minmax(0, 1fr) 38rpx;
+  column-gap: 24rpx;
   align-items: center;
+  align-self: stretch;
   min-width: 0;
+  max-width: 100%;
   width: 100%;
   height: auto;
   padding: 20rpx 26rpx;
@@ -158,7 +165,6 @@ page {
   flex: none;
   width: 60rpx;
   height: 60rpx;
-  margin-right: 24rpx;
   border: 2rpx solid #c5d0cc;
   border-radius: 50%;
   color: #68736f;
@@ -172,17 +178,18 @@ page {
 }
 
 .choice-label {
-  flex: 1;
+  display: block;
   min-width: 0;
+  width: 100%;
+  line-height: 1.4;
+  text-align: left;
   white-space: normal;
   overflow-wrap: break-word;
   word-break: break-word;
 }
 
 .choice-check {
-  flex: none;
   width: 38rpx;
-  margin-left: auto;
   color: #187a68;
   font-size: 30rpx;
   text-align: right;
@@ -259,14 +266,15 @@ page {
   background: #187a68;
 }
 
-.restart-icon {
-  width: 80rpx;
+.reset-button {
+  width: 100%;
   min-height: 88rpx;
   padding: 0;
-  color: #68736f;
-  background: #f5f7f6;
-  font-size: 40rpx;
-  font-weight: 400;
+  border: 2rpx solid #d5dedb;
+  color: #43514c;
+  background: #f2f5f4;
+  font-size: 25rpx;
+  font-weight: 650;
   line-height: 88rpx;
 }
 
