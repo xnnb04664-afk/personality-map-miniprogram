@@ -8,6 +8,16 @@ const { levelFor, validateAnswers, scoreAssessment } = require("../miniprogram/u
 
 const SCALE_IDS = ["ipip-neo-60-zh-local-v1", "ipip-neo-120-zh-v1", "ipip-neo-300-zh-local-v1"];
 
+// Johnson (2014) 官方 IPIP-NEO-120 的 30 个四题分面计分方向。
+// O6 在本产品中使用中性本地化题项替换，单独在对应测试中声明。
+const OFFICIAL_IPIP_NEO_120_KEYS = {
+  N1: [1, 1, 1, 1], N2: [1, 1, 1, -1], N3: [1, 1, 1, -1], N4: [1, 1, 1, -1], N5: [1, -1, -1, -1], N6: [1, 1, 1, -1],
+  E1: [1, 1, -1, -1], E2: [1, 1, -1, -1], E3: [1, 1, 1, -1], E4: [1, 1, 1, -1], E5: [1, 1, 1, 1], E6: [1, 1, 1, 1],
+  O1: [1, 1, 1, 1], O2: [1, 1, -1, -1], O3: [1, 1, -1, -1], O4: [1, -1, -1, -1], O5: [1, -1, -1, -1], O6: [1, 1, -1, -1],
+  A1: [1, 1, 1, -1], A2: [-1, -1, -1, -1], A3: [1, 1, -1, -1], A4: [-1, -1, -1, -1], A5: [-1, -1, -1, -1], A6: [1, 1, -1, -1],
+  C1: [1, 1, 1, 1], C2: [1, -1, -1, -1], C3: [1, 1, -1, -1], C4: [1, 1, -1, -1], C5: [1, 1, -1, -1], C6: [-1, -1, -1, -1],
+};
+
 test("量表题数、ID 和分面映射完整", () => {
   SCALE_IDS.forEach((scaleId) => {
     const scale = getScale(scaleId);
@@ -55,6 +65,26 @@ test("60 题版使用官方独立选择而非前两轮截取", () => {
   assert.ok(texts.has("喜欢井然有序"));
   assert.ok(texts.has("房间常常很乱"));
   assert.ok(!texts.has("担心会发生最糟糕的情况"));
+});
+
+test("120 题版保留 Johnson 官方计分方向，不按正反向数量重新选题", () => {
+  const scale = getScale("ipip-neo-120-zh-v1");
+  const actual = scale.items.reduce((keys, item) => {
+    (keys[item.facet] ||= []).push(item.keyed);
+    return keys;
+  }, {});
+
+  Object.entries(OFFICIAL_IPIP_NEO_120_KEYS).forEach(([facetId, expected]) => {
+    if (facetId !== "O6") assert.deepEqual(actual[facetId], expected, facetId);
+  });
+
+  // O6 的文化敏感原题已替换为同方向的中性题项，属于明确披露的本地化差异。
+  assert.deepEqual(actual.O6, [1, 1, 1, 1]);
+  const sameDirectionFacets = Object.entries(actual)
+    .filter(([, keys]) => new Set(keys).size === 1)
+    .map(([facetId]) => facetId)
+    .sort();
+  assert.deepEqual(sameDirectionFacets, ["A2", "A4", "A5", "C1", "C6", "E5", "E6", "N1", "O1", "O6"]);
 });
 
 test("全选中点得到 50 分和中间水平", () => {

@@ -15,6 +15,7 @@
     <view class="section-heading">版本说明</view>
     <view class="about-copy">60 题版基于 Maples-Keller 等人（2019）的 IPIP-NEO-60；120 题版基于 Johnson（2014）的 IPIP-NEO-120，并参考 IPIP 官方登记的普通话翻译。300 题版基于 Goldberg（1999）的公开量表表示。</view>
     <view class="about-copy">60 题版主要用于五维测量。其 30 个分面各由两道题估计，只作为探索参考，不应与长版分面的稳定性等同。</view>
+    <view class="about-copy">120 题版保留 Johnson 原计分键的题目方向，其中部分分面的四道题均为同向计分。这是原量表结构，并非人群常模校正；作答时的默认同意或默认否定倾向可能影响这些分面。</view>
     <view class="notice">政治、宗教和刑罚等文化敏感题已替换为中性的价值开放题项，因此这里提供的是中文本地化版，不是受版权保护的正式 NEO-PI-R，也不宣称与原版具有完全相同的效度。</view>
   </view>
 
