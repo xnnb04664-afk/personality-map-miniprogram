@@ -31,4 +31,4 @@
 .facet-level { margin-top: 4rpx; color: #89928f; font-size: 20rpx; font-weight: 400; }
 .report-actions { display: flex; flex-direction: column; gap: 18rpx; padding: 38rpx 32rpx 20rpx; }
 .disclaimer { padding: 10rpx 46rpx; color: #818a87; font-size: 21rpx; line-height: 1.65; text-align: center; }
-.poster-canvas { position: fixed; top: 0; left: 0; z-index: -1; opacity: 0; pointer-events: none; }
+.poster-canvas { position: absolute; top: 0; left: 0; z-index: -1; width: 300px; height: 410px; opacity: 0; pointer-events: none; }

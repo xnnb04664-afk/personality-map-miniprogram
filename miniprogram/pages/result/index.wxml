@@ -46,5 +46,5 @@
   </view>
   <view class="disclaimer">本报告用于非临床自我探索，不应作为医疗、招聘、升学或其他重大决策的唯一依据。</view>
 
-  <canvas canvas-id="posterCanvas" class="poster-canvas" style="width: 600px; height: 820px;"></canvas>
+  <canvas type="2d" id="posterCanvas" class="poster-canvas"></canvas>
 </view>

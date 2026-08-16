@@ -150,7 +150,7 @@ function mergeCloudState(remote) {
     const current = local.sessions[incoming.scaleId];
     const incomingCount = Object.keys(incoming.answers || {}).length;
     const currentCount = current ? Object.keys(current.answers || {}).length : -1;
-    if (!current || incomingCount > currentCount || (incomingCount === currentCount && incoming.updatedAt > current.updatedAt)) {
+    if (!current || incomingCount > currentCount || (incomingCount === currentCount && incoming.updatedAt >= current.updatedAt)) {
       local.sessions[incoming.scaleId] = { ...incoming, synced: true };
     }
   });

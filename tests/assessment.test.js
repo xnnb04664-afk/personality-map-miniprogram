@@ -96,6 +96,30 @@ test("并发同步请求复用同一个进行中的任务", async () => {
   assert.equal(cloudCalls.filter((call) => call.action === "getState").length, 1);
 });
 
+test("同步后的同版本云端草稿会回写已同步状态", async () => {
+  const scaleId = "ipip-neo-60-zh-local-v1";
+  const session = assessment.getOrCreateSession(scaleId, true);
+  session.answers = { [`${scaleId}-N1-1`]: 3 };
+  session.updatedAt = 12345;
+  session.synced = false;
+  storage.saveSession(session);
+  let remoteSession = null;
+  wx.cloud.callFunction = ({ data }) => {
+    cloudCalls.push(data);
+    if (data.action === "upsertSession") remoteSession = structuredClone(data.session);
+    const responseData = data.action === "getState" ? { sessions: [remoteSession], results: [] } : {};
+    return Promise.resolve({ result: { ok: true, data: responseData } });
+  };
+
+  await assessment.syncAll();
+  assert.equal(storage.getSession(scaleId).synced, true);
+  assert.equal(cloudCalls.filter((call) => call.action === "upsertSession").length, 1);
+
+  cloudCalls.length = 0;
+  await assessment.syncAll();
+  assert.equal(cloudCalls.some((call) => call.action === "upsertSession"), false);
+});
+
 test("完成答题会取消尚未执行的草稿同步", async () => {
   const scale = getScale("ipip-neo-60-zh-local-v1");
   let session = assessment.getOrCreateSession(scale.id, true);
