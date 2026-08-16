@@ -31,10 +31,15 @@ button::after {
 }
 
 .primary-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   height: 92rpx;
-  line-height: 92rpx;
+  padding: 0;
   color: #ffffff;
   background: #187a68;
+  line-height: 1.4;
+  text-align: center;
 }
 
 .secondary-button {
