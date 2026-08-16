@@ -1,4 +1,4 @@
-<view class="question-page">
+<view class="question-page {{scrollMode ? 'scroll-mode' : ''}}">
   <view class="progress-header">
     <view class="progress-row">
       <view class="progress-position">
@@ -20,8 +20,8 @@
       </scroll-view>
     </view>
     <view class="choice-list">
-      <button wx:for="{{choices}}" wx:key="value" class="choice-button {{selected === item.value ? 'selected' : ''}}" data-value="{{item.value}}" bindtap="chooseAnswer">
-        <view class="choice-index">{{item.value}}</view><text>{{item.label}}</text><view class="choice-check">{{selected === item.value ? '✓' : ''}}</view>
+      <button wx:for="{{choices}}" wx:key="value" class="choice-button {{selected === item.value ? 'selected' : ''}}" style="height: {{choiceHeight}}px; min-height: {{choiceHeight}}px;" data-value="{{item.value}}" bindtap="chooseAnswer">
+        <view class="choice-index">{{item.value}}</view><text class="choice-label">{{item.label}}</text><view class="choice-check">{{selected === item.value ? '✓' : ''}}</view>
       </button>
     </view>
   </view>

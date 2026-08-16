@@ -6,12 +6,13 @@ const path = require("node:path");
 const memory = new Map();
 let pageDefinition;
 let lastToast = "";
+let windowInfo = { windowHeight: 667, windowWidth: 375, screenHeight: 667, safeArea: { bottom: 667 } };
 
 global.wx = {
   getStorageSync(key) { return memory.get(key); },
   setStorageSync(key, value) { memory.set(key, structuredClone(value)); },
   setNavigationBarTitle() {},
-  getWindowInfo() { return { windowHeight: 667, windowWidth: 375 }; },
+  getWindowInfo() { return windowInfo; },
   showToast({ title }) { lastToast = title; },
   navigateBack() {},
   showModal() {},
@@ -31,6 +32,7 @@ function createPage() {
 test.beforeEach(() => {
   memory.clear();
   lastToast = "";
+  windowInfo = { windowHeight: 667, windowWidth: 375, screenHeight: 667, safeArea: { bottom: 667 } };
 });
 
 test("答题页使用单屏布局并只让长题文区域滚动", () => {
@@ -41,8 +43,23 @@ test("答题页使用单屏布局并只让长题文区域滚动", () => {
   assert.match(styles, /\.question-page\s*\{[\s\S]*?height:\s*100vh;[\s\S]*?overflow:\s*hidden;/);
   assert.match(styles, /\.question-body\s*\{[\s\S]*?min-height:\s*0;[\s\S]*?overflow:\s*hidden;/);
   assert.match(styles, /\.choice-list\s*\{[\s\S]*?flex:\s*1;[\s\S]*?min-height:\s*0;/);
-  assert.match(styles, /\.choice-button\s*\{[\s\S]*?flex:\s*1 1 0;/);
-  assert.match(styles, /\.choice-button\s*\{[\s\S]*?min-height:\s*104rpx;/);
+  assert.match(template, /class="choice-label"/);
+  assert.match(styles, /\.choice-label\s*\{[\s\S]*?min-width:\s*0;[\s\S]*?white-space:\s*normal;/);
+  assert.match(styles, /\.scroll-mode\s*\{[\s\S]*?overflow:\s*visible;/);
+});
+
+test("不同屏幕高度会放大选项或自动启用滚动兜底", () => {
+  const page = createPage();
+  [[320, 568], [375, 667], [390, 844], [430, 932]].forEach(([windowWidth, windowHeight]) => {
+    page.configureLayout({ windowWidth, windowHeight, screenHeight: windowHeight, safeArea: { bottom: windowHeight } });
+    assert.equal(page.data.scrollMode, false, `${windowWidth}x${windowHeight}`);
+    assert.ok(page.data.choiceHeight >= 52, `${windowWidth}x${windowHeight}`);
+  });
+  assert.ok(page.data.choiceHeight >= 120, "高屏选项应充分利用纵向空间");
+
+  page.configureLayout({ windowWidth: 568, windowHeight: 320, screenHeight: 320, safeArea: { bottom: 320 } });
+  assert.equal(page.data.scrollMode, true);
+  assert.ok(page.data.choiceHeight >= 78);
 });
 
 test("60 题页可从抽屉跳转并连续补答", async () => {

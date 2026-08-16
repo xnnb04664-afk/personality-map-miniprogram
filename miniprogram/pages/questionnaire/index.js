@@ -6,6 +6,7 @@ Page({
   data: {
     currentIndex: 0, total: 0, progress: 0, question: null, selected: 0, answeredCount: 0, canSubmit: false, isLast: false,
     missingCount: 0, showMissingDrawer: false, missingItems: [], missingScrollHeight: 0, reviewingMissing: false,
+    choiceHeight: 56, scrollMode: false,
     choices: [
       { value: 1, label: "非常不准确" }, { value: 2, label: "不太准确" }, { value: 3, label: "适中" },
       { value: 4, label: "比较准确" }, { value: 5, label: "非常准确" },
@@ -13,6 +14,7 @@ Page({
   },
 
   onLoad(options) {
+    this.configureLayout();
     this.scale = getScale(options.scaleId);
     if (!this.scale) {
       wx.showToast({ title: "量表不存在", icon: "none" });
@@ -25,6 +27,29 @@ Page({
     const startIndex = Math.min(Math.max(savedIndex, 0), this.scale.itemCount - 1);
     wx.setNavigationBarTitle({ title: this.scale.title });
     this.showQuestion(startIndex);
+  },
+
+  configureLayout(providedInfo) {
+    const windowInfo = providedInfo || (wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync());
+    const windowWidth = Math.max(280, Number(windowInfo.windowWidth) || 375);
+    const windowHeight = Math.max(240, Number(windowInfo.windowHeight) || 667);
+    const screenHeight = Number(windowInfo.screenHeight) || windowHeight;
+    const safeBottom = windowInfo.safeArea ? Math.max(0, screenHeight - Number(windowInfo.safeArea.bottom || screenHeight)) : 0;
+    const rpx = windowWidth / 750;
+    const compact = windowHeight <= 700;
+    const reservedRpx = compact ? 374 : 472;
+    const availablePerChoice = (windowHeight - safeBottom - reservedRpx * rpx) / 5;
+    const minimumChoiceHeight = Math.max(52, 104 * rpx);
+    this.setData({
+      choiceHeight: Math.floor(Math.max(minimumChoiceHeight, availablePerChoice)),
+      scrollMode: availablePerChoice < minimumChoiceHeight,
+    });
+  },
+
+  onResize(event) {
+    const size = event && event.size ? event.size : {};
+    const windowInfo = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync();
+    this.configureLayout({ ...windowInfo, ...size });
   },
 
   showQuestion(index) {
