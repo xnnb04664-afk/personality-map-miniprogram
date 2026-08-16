@@ -39,7 +39,7 @@ test("答题页使用单屏布局并只让长题文区域滚动", () => {
   const template = fs.readFileSync(path.join(__dirname, "../miniprogram/pages/questionnaire/index.wxml"), "utf8");
   const styles = fs.readFileSync(path.join(__dirname, "../miniprogram/pages/questionnaire/index.wxss"), "utf8");
   assert.match(template, /class="question-text-scroll"\s+scroll-y/);
-  assert.match(template, /class="reset-button"[^>]*aria-label="重新开始当前测试"[^>]*><image class="reset-icon" src="\/images\/icons\/restart\.svg"/);
+  assert.match(template, /class="reset-button"[^>]*aria-label="重新开始当前测试"[^>]*><image class="reset-icon" src="\/images\/icons\/restart\.png"/);
   assert.match(styles, /\.question-page\s*\{[\s\S]*?height:\s*100vh;[\s\S]*?overflow:\s*hidden;/);
   assert.match(styles, /\.question-body\s*\{[\s\S]*?min-height:\s*0;[\s\S]*?overflow:\s*hidden;/);
   assert.match(styles, /\.choice-list\s*\{[\s\S]*?flex:\s*1;[\s\S]*?min-height:\s*0;/);
