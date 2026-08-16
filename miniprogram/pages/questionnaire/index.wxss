@@ -277,21 +277,16 @@ page {
   height: 80rpx;
   margin: 0 auto;
   padding: 0;
-  border: 2rpx solid #dfe5e2;
-  color: #9b4b4b;
-  background: #ffffff;
-  font-size: 38rpx;
-  font-weight: 500;
-  line-height: 76rpx;
+  border: 2rpx solid #a83f3f;
+  background: #b54848;
+  line-height: 1;
   text-align: center;
 }
 
 .reset-icon {
   display: block;
-  color: #9b4b4b;
-  font-size: 38rpx;
-  font-weight: 500;
-  line-height: 1;
+  width: 40rpx;
+  height: 40rpx;
 }
 
 .drawer-mask {
