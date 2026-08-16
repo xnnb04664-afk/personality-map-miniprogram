@@ -2,7 +2,7 @@
 .brand-row { display: flex; align-items: center; justify-content: space-between; }
 .brand-name { font-size: 44rpx; font-weight: 750; }
 .brand-subtitle { margin-top: 8rpx; color: #6c7773; font-size: 24rpx; }
-.about-button { width: 68rpx; height: 68rpx; padding: 0; line-height: 64rpx; border: 2rpx solid #cdd5d2; border-radius: 50%; background: #fff; color: #43504b; font-family: Georgia, serif; font-size: 30rpx; }
+.about-button { display: flex; align-items: center; justify-content: center; width: 68rpx; height: 68rpx; padding: 0; border: 2rpx solid #cdd5d2; border-radius: 50%; background: #fff; color: #43504b; font-family: Georgia, serif; font-size: 30rpx; line-height: 1; }
 .intro-band { margin: 40rpx -32rpx 0; padding: 38rpx 32rpx; background: #e7f1ed; border-top: 1rpx solid #d7e5e0; border-bottom: 1rpx solid #d7e5e0; }
 .intro-title { max-width: 620rpx; font-size: 34rpx; line-height: 1.45; font-weight: 700; }
 .intro-copy { margin-top: 16rpx; color: #586560; line-height: 1.7; }
@@ -12,7 +12,7 @@
 .scale-list { display: flex; flex-direction: column; gap: 24rpx; }
 .scale-card { padding: 30rpx; border: 1rpx solid #dfe5e2; border-radius: 12rpx; background: #fff; }
 .scale-topline { display: flex; justify-content: space-between; align-items: center; color: #6c7773; font-size: 23rpx; }
-.scale-kind { padding: 8rpx 14rpx; border-radius: 6rpx; color: #176a5c; background: #e5f1ed; font-weight: 650; }
+.scale-kind { display: inline-flex; align-items: center; justify-content: center; min-height: 46rpx; padding: 6rpx 14rpx; border-radius: 6rpx; color: #176a5c; background: #e5f1ed; font-weight: 650; line-height: 1.4; text-align: center; }
 .scale-title { margin-top: 26rpx; font-size: 36rpx; font-weight: 750; }
 .scale-subtitle { margin-top: 5rpx; color: #53605b; font-size: 25rpx; }
 .scale-description { min-height: 92rpx; margin: 22rpx 0 28rpx; color: #68736f; line-height: 1.65; }
@@ -20,6 +20,6 @@
 .progress-meta { display: flex; justify-content: space-between; margin-bottom: 12rpx; color: #65716d; font-size: 23rpx; }
 .progress-track { height: 10rpx; overflow: hidden; border-radius: 5rpx; background: #e7ebe9; }
 .progress-fill { height: 100%; background: #187a68; transition: width .2s; }
-.restart-link { height: 66rpx; line-height: 66rpx; margin: 10rpx auto -10rpx; color: #71807a; background: transparent; font-size: 24rpx; font-weight: 500; }
+.restart-link { display: flex; align-items: center; justify-content: center; height: 66rpx; line-height: 1.4; margin: 10rpx auto -10rpx; color: #71807a; background: transparent; font-size: 24rpx; font-weight: 500; }
 .load-error { margin-top: 40rpx; padding: 30rpx; border-left: 6rpx solid #b54848; color: #6f4a4a; background: #f8eaea; line-height: 1.7; }
 .load-error-title { margin-bottom: 8rpx; color: #8e3636; font-weight: 700; }
