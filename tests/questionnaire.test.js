@@ -1,5 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const memory = new Map();
 let pageDefinition;
@@ -29,6 +31,16 @@ function createPage() {
 test.beforeEach(() => {
   memory.clear();
   lastToast = "";
+});
+
+test("答题页使用单屏布局并只让长题文区域滚动", () => {
+  const template = fs.readFileSync(path.join(__dirname, "../miniprogram/pages/questionnaire/index.wxml"), "utf8");
+  const styles = fs.readFileSync(path.join(__dirname, "../miniprogram/pages/questionnaire/index.wxss"), "utf8");
+  assert.match(template, /class="question-text-scroll"\s+scroll-y/);
+  assert.match(template, /class="restart-icon"/);
+  assert.match(styles, /\.question-page\s*\{[\s\S]*?height:\s*100vh;[\s\S]*?overflow:\s*hidden;/);
+  assert.match(styles, /\.question-body\s*\{[\s\S]*?min-height:\s*0;[\s\S]*?overflow:\s*hidden;/);
+  assert.match(styles, /\.choice-button\s*\{[\s\S]*?min-height:\s*104rpx;/);
 });
 
 test("60 题页可从抽屉跳转并连续补答", async () => {

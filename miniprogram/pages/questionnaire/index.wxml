@@ -13,8 +13,12 @@
     <view class="progress-track"><view class="progress-fill" style="width: {{progress}}%"></view></view>
   </view>
   <view class="question-body" wx:if="{{question}}">
-    <view class="question-number">题目 {{currentIndex + 1}}</view>
-    <view class="question-text">{{question.text}}</view>
+    <view class="question-prompt">
+      <view class="question-number">题目 {{currentIndex + 1}}</view>
+      <scroll-view class="question-text-scroll" scroll-y enhanced show-scrollbar="{{false}}">
+        <view class="question-text">{{question.text}}</view>
+      </scroll-view>
+    </view>
     <view class="choice-list">
       <button wx:for="{{choices}}" wx:key="value" class="choice-button {{selected === item.value ? 'selected' : ''}}" data-value="{{item.value}}" bindtap="chooseAnswer">
         <view class="choice-index">{{item.value}}</view><text>{{item.label}}</text><view class="choice-check">{{selected === item.value ? '✓' : ''}}</view>
@@ -24,13 +28,13 @@
   <view class="question-actions-panel">
     <view class="question-footer">
       <button class="nav-button" bindtap="previous" disabled="{{currentIndex === 0}}">上一题</button>
+      <button class="restart-icon" bindtap="restart" aria-label="重新开始">↻</button>
       <block wx:if="{{!canSubmit}}">
         <button wx:if="{{!isLast}}" class="nav-button" bindtap="next">下一题</button>
         <button wx:else class="nav-button missing-action" bindtap="findMissing">查看未答</button>
       </block>
       <button wx:else class="submit-button" bindtap="submit">生成报告</button>
     </view>
-    <button class="restart-button" bindtap="restart">重新开始</button>
   </view>
 
   <view wx:if="{{showMissingDrawer}}" class="drawer-mask" catchtap="closeMissingDrawer">
