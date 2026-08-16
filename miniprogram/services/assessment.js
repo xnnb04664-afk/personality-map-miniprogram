@@ -4,6 +4,8 @@ const { validateAnswers, scoreAssessment } = require("../utils/scoring");
 
 const CLOUD_TIMEOUT_MS = 12000;
 const syncTimers = new Map();
+const completedSessionIds = new Set();
+let syncPromise = null;
 
 function cloudEnabled() {
   try {
@@ -70,6 +72,7 @@ function scheduleSessionSync(session) {
   cancelSessionSync(session.scaleId);
   const timer = setTimeout(async () => {
     syncTimers.delete(session.scaleId);
+    if (completedSessionIds.has(session.sessionId)) return;
     const latest = storage.getSession(session.scaleId);
     if (!latest || latest.sessionId !== session.sessionId || latest.updatedAt !== session.updatedAt) return;
     try {
@@ -101,6 +104,14 @@ function answerQuestion(session, itemId, value, currentIndex) {
   return updated;
 }
 
+function updateSessionPosition(session, currentIndex) {
+  if (!session || session.currentIndex === currentIndex) return session;
+  const updated = { ...session, currentIndex, updatedAt: Date.now(), synced: false };
+  storage.saveSession(updated);
+  scheduleSessionSync(updated);
+  return updated;
+}
+
 async function completeSession(session) {
   const score = scoreAssessment(session.scaleId, session.answers);
   const scale = getScale(session.scaleId);
@@ -117,6 +128,7 @@ async function completeSession(session) {
     completedAt: Date.now(),
     synced: false,
   };
+  completedSessionIds.add(session.sessionId);
   cancelSessionSync(session.scaleId);
   storage.saveResult(result);
   if (cloudEnabled()) {
@@ -133,6 +145,7 @@ async function completeSession(session) {
 
 function mergeCloudState(remote) {
   const local = storage.readState();
+  if (local.pendingDeletes.all) return local;
   (remote.sessions || []).forEach((incoming) => {
     const current = local.sessions[incoming.scaleId];
     const incomingCount = Object.keys(incoming.answers || {}).length;
@@ -142,14 +155,40 @@ function mergeCloudState(remote) {
     }
   });
   const resultMap = new Map(local.results.map((item) => [item.resultId, item]));
-  (remote.results || []).forEach((item) => resultMap.set(item.resultId, { ...item, synced: true }));
+  const deletedResultIds = new Set(local.pendingDeletes.resultIds);
+  (remote.results || []).forEach((item) => {
+    if (!deletedResultIds.has(item.resultId)) resultMap.set(item.resultId, { ...item, synced: true });
+  });
   local.results = Array.from(resultMap.values()).sort((a, b) => b.completedAt - a.completedAt);
   storage.writeState(local);
   return local;
 }
 
-async function syncAll() {
-  if (!cloudEnabled()) return storage.readState();
+async function syncPendingDeletes() {
+  const pending = storage.readState().pendingDeletes;
+  if (pending.all) {
+    try {
+      await callCloud("deleteAll");
+      storage.clearPendingDeleteAll();
+      return true;
+    } catch (error) {
+      console.warn("云端清空将在稍后重试", error.message);
+      return false;
+    }
+  }
+  await Promise.all(pending.resultIds.map(async (resultId) => {
+    try {
+      await callCloud("deleteResult", { resultId });
+      storage.clearPendingResultDelete(resultId);
+    } catch (error) {
+      console.warn("云端删除将在稍后重试", resultId, error.message);
+    }
+  }));
+  return true;
+}
+
+async function performSyncAll() {
+  if (!await syncPendingDeletes()) return storage.readState();
   const state = storage.readState();
   const pendingSessions = Object.values(state.sessions).filter((item) => !item.synced);
   const pendingResults = state.results.filter((item) => !item.synced);
@@ -157,6 +196,14 @@ async function syncAll() {
   await Promise.all(pendingResults.map((result) => callCloud("completeSession", { result }).catch(() => null)));
   const remote = await callCloud("getState");
   return mergeCloudState(remote);
+}
+
+function syncAll() {
+  if (!cloudEnabled()) return Promise.resolve(storage.readState());
+  if (syncPromise) return syncPromise;
+  syncPromise = performSyncAll();
+  syncPromise.then(() => { syncPromise = null; }, () => { syncPromise = null; });
+  return syncPromise;
 }
 
 async function getResult(resultId) {
@@ -173,21 +220,30 @@ async function getResult(resultId) {
 }
 
 async function deleteResult(resultId) {
-  storage.removeResult(resultId);
-  if (cloudEnabled()) await callCloud("deleteResult", { resultId });
+  const shouldSync = cloudEnabled();
+  storage.removeResult(resultId, shouldSync);
+  if (shouldSync) {
+    await callCloud("deleteResult", { resultId });
+    storage.clearPendingResultDelete(resultId);
+  }
 }
 
 async function deleteAll() {
   syncTimers.forEach((timer) => clearTimeout(timer));
   syncTimers.clear();
-  storage.clearAll();
-  if (cloudEnabled()) await callCloud("deleteAll");
+  const shouldSync = cloudEnabled();
+  storage.clearAll(shouldSync);
+  if (shouldSync) {
+    await callCloud("deleteAll");
+    storage.clearPendingDeleteAll();
+  }
 }
 
 module.exports = {
   cloudEnabled,
   getOrCreateSession,
   answerQuestion,
+  updateSessionPosition,
   completeSession,
   syncAll,
   getResult,

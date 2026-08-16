@@ -62,3 +62,19 @@ test("未答为零时不打开抽屉", () => {
   assert.equal(lastToast, "所有题目已回答");
   page.onUnload();
 });
+
+test("手动切题会取消自动前进并恢复到实际浏览位置", async () => {
+  const page = createPage();
+  page.onLoad({ scaleId: "ipip-neo-60-zh-local-v1", restart: "1" });
+  page.showQuestion(2);
+  page.chooseAnswer({ currentTarget: { dataset: { value: 3 } } });
+  page.previous();
+  await new Promise((resolve) => setTimeout(resolve, 220));
+  assert.equal(page.data.currentIndex, 1);
+  page.onUnload();
+
+  const resumed = createPage();
+  resumed.onLoad({ scaleId: "ipip-neo-60-zh-local-v1" });
+  assert.equal(resumed.data.currentIndex, 1);
+  resumed.onUnload();
+});

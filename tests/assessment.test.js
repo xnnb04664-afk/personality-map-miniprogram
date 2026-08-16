@@ -5,14 +5,17 @@ const { getScale } = require("../miniprogram/data/scales");
 const memory = new Map();
 const cloudCalls = [];
 
+function successfulCallFunction({ data }) {
+  cloudCalls.push(data);
+  const responseData = data.action === "getState" ? { sessions: [], results: [] } : {};
+  return Promise.resolve({ result: { ok: true, data: responseData } });
+}
+
 global.wx = {
   getStorageSync(key) { return memory.get(key); },
   setStorageSync(key, value) { memory.set(key, structuredClone(value)); },
   cloud: {
-    callFunction({ data }) {
-      cloudCalls.push(data);
-      return Promise.resolve({ result: { ok: true, data: {} } });
-    },
+    callFunction: successfulCallFunction,
   },
 };
 global.getApp = () => ({ globalData: { cloudEnabled: true } });
@@ -23,6 +26,74 @@ const assessment = require("../miniprogram/services/assessment");
 test.beforeEach(() => {
   memory.clear();
   cloudCalls.length = 0;
+  wx.cloud.callFunction = successfulCallFunction;
+});
+
+test("删除失败时墓碑阻止云端结果复活并在恢复后清除", async () => {
+  const remoteResult = { resultId: "r1", scaleId: "ipip-neo-60-zh-local-v1", completedAt: 1, domains: [] };
+  storage.saveResult(remoteResult);
+  let deleteSucceeds = false;
+  let remoteExists = true;
+  wx.cloud.callFunction = ({ data }) => {
+    cloudCalls.push(data);
+    if (data.action === "deleteResult") {
+      if (!deleteSucceeds) return Promise.reject(new Error("offline"));
+      remoteExists = false;
+      return Promise.resolve({ result: { ok: true, data: {} } });
+    }
+    if (data.action === "getState") {
+      return Promise.resolve({ result: { ok: true, data: { sessions: [], results: remoteExists ? [remoteResult] : [] } } });
+    }
+    return Promise.resolve({ result: { ok: true, data: {} } });
+  };
+
+  await assert.rejects(assessment.deleteResult("r1"), /offline/);
+  assert.equal(storage.getResult("r1"), null);
+  assert.deepEqual(storage.readState().pendingDeletes.resultIds, ["r1"]);
+
+  await assessment.syncAll();
+  assert.equal(storage.getResult("r1"), null);
+  assert.deepEqual(storage.readState().pendingDeletes.resultIds, ["r1"]);
+
+  deleteSucceeds = true;
+  await assessment.syncAll();
+  assert.equal(storage.getResult("r1"), null);
+  assert.deepEqual(storage.readState().pendingDeletes.resultIds, []);
+});
+
+test("云端清空失败时保留全量删除标记并在恢复后重试", async () => {
+  storage.saveResult({ resultId: "r2", scaleId: "ipip-neo-120-zh-v1", completedAt: 2, domains: [] });
+  let deleteSucceeds = false;
+  wx.cloud.callFunction = ({ data }) => {
+    cloudCalls.push(data);
+    if (data.action === "deleteAll") {
+      if (!deleteSucceeds) return Promise.reject(new Error("offline"));
+      return Promise.resolve({ result: { ok: true, data: {} } });
+    }
+    if (data.action === "getState") {
+      return Promise.resolve({ result: { ok: true, data: { sessions: [], results: [] } } });
+    }
+    return Promise.resolve({ result: { ok: true, data: {} } });
+  };
+
+  await assert.rejects(assessment.deleteAll(), /offline/);
+  assert.equal(storage.readState().results.length, 0);
+  assert.equal(storage.readState().pendingDeletes.all, true);
+
+  await assessment.syncAll();
+  assert.equal(storage.readState().pendingDeletes.all, true);
+
+  deleteSucceeds = true;
+  await assessment.syncAll();
+  assert.equal(storage.readState().pendingDeletes.all, false);
+});
+
+test("并发同步请求复用同一个进行中的任务", async () => {
+  const first = assessment.syncAll();
+  const second = assessment.syncAll();
+  assert.equal(first, second);
+  await Promise.all([first, second]);
+  assert.equal(cloudCalls.filter((call) => call.action === "getState").length, 1);
 });
 
 test("完成答题会取消尚未执行的草稿同步", async () => {

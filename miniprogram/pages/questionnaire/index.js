@@ -21,13 +21,15 @@ Page({
     }
     this.session = assessment.getOrCreateSession(this.scale.id, options.restart === "1");
     const lastAnswered = this.scale.items.reduce((last, item, index) => this.session.answers[item.id] ? index : last, -1);
-    const startIndex = Math.min(Math.max(this.session.currentIndex || lastAnswered + 1, 0), this.scale.itemCount - 1);
+    const savedIndex = Number.isInteger(this.session.currentIndex) ? this.session.currentIndex : lastAnswered + 1;
+    const startIndex = Math.min(Math.max(savedIndex, 0), this.scale.itemCount - 1);
     wx.setNavigationBarTitle({ title: this.scale.title });
     this.showQuestion(startIndex);
   },
 
   showQuestion(index) {
     const question = this.scale.items[index];
+    this.session = assessment.updateSessionPosition(this.session, index);
     const answeredCount = Object.keys(this.session.answers).length;
     this.setData({
       currentIndex: index, total: this.scale.itemCount, progress: Math.round(((index + 1) / this.scale.itemCount) * 100),
@@ -64,14 +66,17 @@ Page({
   },
 
   previous() {
+    this.clearAdvanceTimer();
     this.reviewingMissing = false;
     if (this.data.currentIndex > 0) this.showQuestion(this.data.currentIndex - 1);
   },
   next() {
+    this.clearAdvanceTimer();
     this.reviewingMissing = false;
     if (this.data.currentIndex < this.scale.itemCount - 1) this.showQuestion(this.data.currentIndex + 1);
   },
   openMissingDrawer() {
+    this.clearAdvanceTimer();
     if (!this.data.missingCount) {
       wx.showToast({ title: "所有题目已回答", icon: "none" });
       return;
@@ -91,6 +96,7 @@ Page({
   },
   keepDrawerOpen() {},
   jumpToMissing(event) {
+    this.clearAdvanceTimer();
     const index = Number(event.currentTarget.dataset.index);
     this.reviewingMissing = true;
     this.setData({ showMissingDrawer: false, missingItems: [], missingScrollHeight: 0, reviewingMissing: true });
@@ -118,6 +124,7 @@ Page({
     });
   },
   restart() {
+    this.clearAdvanceTimer();
     wx.showModal({ title: "重新开始", content: "已填写的答案将全部清除。", confirmColor: "#187A68", success: ({ confirm }) => {
       if (confirm) {
         this.reviewingMissing = false;
@@ -127,5 +134,9 @@ Page({
       }
     } });
   },
-  onUnload() { clearTimeout(this.advanceTimer); },
+  clearAdvanceTimer() {
+    clearTimeout(this.advanceTimer);
+    this.advanceTimer = null;
+  },
+  onUnload() { this.clearAdvanceTimer(); },
 });

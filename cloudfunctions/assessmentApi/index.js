@@ -1,4 +1,5 @@
 const cloud = require("wx-server-sdk");
+const crypto = require("crypto");
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
@@ -113,13 +114,35 @@ function cleanDoc(doc) {
   return safe;
 }
 
+function scopedDocumentId(openid, scope, value) {
+  return crypto.createHash("sha256").update(`${openid}:${scope}:${value}`).digest("hex");
+}
+
+function preferredSession(docs) {
+  return docs.reduce((preferred, candidate) => {
+    if (!preferred) return candidate;
+    const preferredCount = Object.keys(preferred.answers || {}).length;
+    const candidateCount = Object.keys(candidate.answers || {}).length;
+    if (candidateCount !== preferredCount) return candidateCount > preferredCount ? candidate : preferred;
+    return candidate.updatedAt > preferred.updatedAt ? candidate : preferred;
+  }, null);
+}
+
+async function hasCompletedSession(openid, sessionId) {
+  if (!sessionId) return false;
+  const response = await db.collection(RESULT_COLLECTION).where({ _openid: openid, sessionId }).limit(1).get();
+  return response.data.length > 0;
+}
+
 async function getState(openid) {
-  const [sessionResponse, resultResponse] = await Promise.all([
-    db.collection(SESSION_COLLECTION).where({ _openid: openid, status: "in_progress" }).limit(2).get(),
+  const [sessionResponses, resultResponse] = await Promise.all([
+    Promise.all(Object.keys(SCALE_DEFS).map((scaleId) => (
+      db.collection(SESSION_COLLECTION).where({ _openid: openid, scaleId, status: "in_progress" }).limit(5).get()
+    ))),
     db.collection(RESULT_COLLECTION).where({ _openid: openid }).orderBy("completedAt", "desc").limit(30).get(),
   ]);
   return {
-    sessions: sessionResponse.data.map(cleanDoc),
+    sessions: sessionResponses.map((response) => preferredSession(response.data)).filter(Boolean).map(cleanDoc),
     results: resultResponse.data.map(cleanDoc),
   };
 }
@@ -128,6 +151,7 @@ async function upsertSession(openid, input) {
   const def = SCALE_DEFS[input && input.scaleId];
   if (!input || !def || input.scaleVersion !== def.version || typeof input.sessionId !== "string") throw new Error("INVALID_SESSION");
   validateAnswers(input.scaleId, input.answers, false);
+  if (await hasCompletedSession(openid, input.sessionId)) return { sessionId: input.sessionId, ignored: true };
   const now = Date.now();
   const session = {
     _openid: openid,
@@ -151,7 +175,12 @@ async function upsertSession(openid, input) {
       await db.collection(SESSION_COLLECTION).doc(current._id).set({ data: session });
     }
   } else {
-    await db.collection(SESSION_COLLECTION).add({ data: session });
+    const documentId = scopedDocumentId(openid, "session", input.scaleId);
+    await db.collection(SESSION_COLLECTION).doc(documentId).set({ data: session });
+  }
+  if (await hasCompletedSession(openid, input.sessionId)) {
+    await db.collection(SESSION_COLLECTION).where({ _openid: openid, sessionId: input.sessionId, status: "in_progress" }).remove();
+    return { sessionId: input.sessionId, ignored: true };
   }
   return { sessionId: input.sessionId };
 }
@@ -177,7 +206,10 @@ async function completeSession(openid, input) {
   };
   const existing = await db.collection(RESULT_COLLECTION).where({ _openid: openid, resultId: input.resultId }).limit(1).get();
   if (existing.data.length) await db.collection(RESULT_COLLECTION).doc(existing.data[0]._id).set({ data: result });
-  else await db.collection(RESULT_COLLECTION).add({ data: result });
+  else {
+    const documentId = scopedDocumentId(openid, "result", input.resultId);
+    await db.collection(RESULT_COLLECTION).doc(documentId).set({ data: result });
+  }
   await db.collection(SESSION_COLLECTION).where({ _openid: openid, sessionId: input.sessionId }).remove();
   return { resultId: input.resultId };
 }
