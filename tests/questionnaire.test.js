@@ -39,7 +39,7 @@ test("答题页使用单屏布局并只让长题文区域滚动", () => {
   const template = fs.readFileSync(path.join(__dirname, "../miniprogram/pages/questionnaire/index.wxml"), "utf8");
   const styles = fs.readFileSync(path.join(__dirname, "../miniprogram/pages/questionnaire/index.wxss"), "utf8");
   assert.match(template, /class="question-text-scroll"\s+scroll-y/);
-  assert.match(template, /class="reset-button"[^>]*>↻ 重新开始<\/button>/);
+  assert.match(template, /class="reset-button"[^>]*aria-label="重新开始当前测试"[^>]*>↻<\/button>/);
   assert.match(styles, /\.question-page\s*\{[\s\S]*?height:\s*100vh;[\s\S]*?overflow:\s*hidden;/);
   assert.match(styles, /\.question-body\s*\{[\s\S]*?min-height:\s*0;[\s\S]*?overflow:\s*hidden;/);
   assert.match(styles, /\.choice-list\s*\{[\s\S]*?flex:\s*1;[\s\S]*?min-height:\s*0;/);
@@ -47,9 +47,9 @@ test("答题页使用单屏布局并只让长题文区域滚动", () => {
   assert.match(styles, /\.choice-label\s*\{[\s\S]*?min-width:\s*0;[\s\S]*?white-space:\s*normal;/);
   assert.match(styles, /\.choice-button\s*\{[\s\S]*?grid-template-columns:\s*60rpx minmax\(0, 1fr\) 38rpx;/);
   assert.match(styles, /\.scroll-mode\s*\{[\s\S]*?overflow:\s*visible;/);
-  assert.match(styles, /grid-template-columns:\s*minmax\(0, 1fr\) 190rpx minmax\(0, 1fr\)/);
-  assert.match(styles, /\.reset-button\s*\{[\s\S]*?border:\s*2rpx solid #dfb4b4;[\s\S]*?color:\s*#a13f3f;/);
-  assert.match(styles, /\.reset-button\s*\{[\s\S]*?height:\s*88rpx;[\s\S]*?font-size:\s*24rpx;[\s\S]*?white-space:\s*nowrap;/);
+  assert.match(styles, /grid-template-columns:\s*minmax\(0, 1fr\) 88rpx minmax\(0, 1fr\)/);
+  assert.match(styles, /\.reset-button\s*\{[\s\S]*?width:\s*80rpx;[\s\S]*?height:\s*80rpx;/);
+  assert.match(styles, /\.reset-button\s*\{[\s\S]*?border:\s*2rpx solid #dfe5e2;[\s\S]*?background:\s*#ffffff;/);
 });
 
 test("重新开始需要红色确认并明确清除全部答案", () => {
