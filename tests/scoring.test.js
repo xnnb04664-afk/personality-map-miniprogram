@@ -86,6 +86,8 @@ test("拒绝缺失、越界和未知答案", () => {
   assert.throws(() => scoreAssessment(scale.id, answers), /INCOMPLETE/);
   assert.throws(() => validateAnswers(scale, { bad: 3 }), /INVALID/);
   assert.throws(() => validateAnswers(scale, { [scale.items[0].id]: 6 }), /INVALID/);
+  assert.throws(() => validateAnswers(scale, { [scale.items[0].id]: "4" }), /INVALID/);
+  assert.throws(() => validateAnswers(scale, { [scale.items[0].id]: null }), /INVALID/);
 });
 
 test("水平分段边界固定", () => {

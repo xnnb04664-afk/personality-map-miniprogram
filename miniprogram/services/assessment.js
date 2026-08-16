@@ -2,7 +2,8 @@ const storage = require("../utils/storage");
 const { getScale } = require("../data/scales");
 const { validateAnswers, scoreAssessment } = require("../utils/scoring");
 
-let syncTimer = null;
+const CLOUD_TIMEOUT_MS = 12000;
+const syncTimers = new Map();
 
 function cloudEnabled() {
   try {
@@ -14,9 +15,18 @@ function cloudEnabled() {
 
 async function callCloud(action, data = {}) {
   if (!cloudEnabled()) throw new Error("CLOUD_DISABLED");
-  const response = await wx.cloud.callFunction({
-    name: "assessmentApi",
-    data: { action, ...data },
+  const response = await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("CLOUD_REQUEST_TIMEOUT")), CLOUD_TIMEOUT_MS);
+    Promise.resolve().then(() => wx.cloud.callFunction({
+      name: "assessmentApi",
+      data: { action, ...data },
+    })).then((result) => {
+      clearTimeout(timeout);
+      resolve(result);
+    }, (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
   });
   if (!response.result || response.result.ok !== true) {
     throw new Error((response.result && response.result.error) || "CLOUD_REQUEST_FAILED");
@@ -42,14 +52,26 @@ function newSession(scaleId) {
 }
 
 function getOrCreateSession(scaleId, restart = false) {
-  if (restart) storage.removeSession(scaleId);
+  if (restart) {
+    cancelSessionSync(scaleId);
+    storage.removeSession(scaleId);
+  }
   return storage.getSession(scaleId) || newSession(scaleId);
+}
+
+function cancelSessionSync(scaleId) {
+  const timer = syncTimers.get(scaleId);
+  if (timer) clearTimeout(timer);
+  syncTimers.delete(scaleId);
 }
 
 function scheduleSessionSync(session) {
   if (!cloudEnabled()) return;
-  clearTimeout(syncTimer);
-  syncTimer = setTimeout(async () => {
+  cancelSessionSync(session.scaleId);
+  const timer = setTimeout(async () => {
+    syncTimers.delete(session.scaleId);
+    const latest = storage.getSession(session.scaleId);
+    if (!latest || latest.sessionId !== session.sessionId || latest.updatedAt !== session.updatedAt) return;
     try {
       await callCloud("upsertSession", { session });
       const current = storage.getSession(session.scaleId);
@@ -61,6 +83,7 @@ function scheduleSessionSync(session) {
       console.warn("答题进度将在稍后同步", error.message);
     }
   }, 700);
+  syncTimers.set(session.scaleId, timer);
 }
 
 function answerQuestion(session, itemId, value, currentIndex) {
@@ -94,6 +117,7 @@ async function completeSession(session) {
     completedAt: Date.now(),
     synced: false,
   };
+  cancelSessionSync(session.scaleId);
   storage.saveResult(result);
   if (cloudEnabled()) {
     try {
@@ -154,6 +178,8 @@ async function deleteResult(resultId) {
 }
 
 async function deleteAll() {
+  syncTimers.forEach((timer) => clearTimeout(timer));
+  syncTimers.clear();
   storage.clearAll();
   if (cloudEnabled()) await callCloud("deleteAll");
 }
