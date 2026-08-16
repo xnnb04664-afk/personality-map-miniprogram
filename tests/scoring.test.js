@@ -1,10 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-const vm = require("node:vm");
 const { getScale } = require("../miniprogram/data/scales");
 const { levelFor, validateAnswers, scoreAssessment } = require("../miniprogram/utils/scoring");
+const cloudScaleConfig = require("../cloudfunctions/assessmentApi/scale-keys.json");
 
 const SCALE_IDS = ["ipip-neo-60-zh-local-v1", "ipip-neo-120-zh-v1", "ipip-neo-300-zh-local-v1"];
 
@@ -37,23 +35,15 @@ test("量表题数、ID 和分面映射完整", () => {
 });
 
 test("云端计分键与小程序题库保持一致", () => {
-  const source = fs.readFileSync(path.join(__dirname, "../cloudfunctions/assessmentApi/index.js"), "utf8");
-  const match = source.match(/const KEYS = (\{[\s\S]*?\n\});/);
-  assert.ok(match, "云函数中应包含计分键");
-  const cloudKeys = vm.runInNewContext(`(${match[1]})`);
-  const scale = getScale("ipip-neo-300-zh-local-v1");
-  scale.items.forEach((item) => {
-    const round = Number(item.id.split("-").at(-1));
-    assert.equal(cloudKeys[item.facet][round - 1], item.keyed, item.id);
-  });
-
-  const shortMatch = source.match(/const IPIP_NEO_60_KEYS = (\{[\s\S]*?\n\});/);
-  assert.ok(shortMatch, "云函数中应包含 60 题独立计分键");
-  const shortKeys = vm.runInNewContext(`(${shortMatch[1]})`);
-  const shortScale = getScale("ipip-neo-60-zh-local-v1");
-  shortScale.items.forEach((item) => {
-    const round = Number(item.id.split("-").at(-1));
-    assert.equal(shortKeys[item.facet][round - 1], item.keyed, item.id);
+  SCALE_IDS.forEach((scaleId) => {
+    const scale = getScale(scaleId);
+    const cloudScale = cloudScaleConfig.scales[scaleId];
+    assert.equal(cloudScale.version, scale.version, scaleId);
+    assert.equal(cloudScale.itemCount, scale.itemCount, scaleId);
+    scale.items.forEach((item) => {
+      const round = Number(item.id.split("-").at(-1));
+      assert.equal(cloudScale.keys[item.facet][round - 1], item.keyed, item.id);
+    });
   });
 });
 

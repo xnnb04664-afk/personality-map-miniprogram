@@ -134,6 +134,78 @@ test("完成答题会取消尚未执行的草稿同步", async () => {
   assert.deepEqual(cloudCalls.map((call) => call.action), ["completeSession"]);
   assert.equal(storage.getSession(scale.id), null);
   assert.equal(storage.readState().results.length, 1);
+  assert.equal(Object.hasOwn(storage.readState().results[0], "answers"), false);
+  assert.equal(storage.readState().results[0].synced, true);
+});
+
+test("确定性结果错误会标记同步失败且不再反复空推", async () => {
+  const scale = getScale("ipip-neo-60-zh-local-v1");
+  const session = assessment.getOrCreateSession(scale.id, true);
+  session.answers = Object.fromEntries(scale.items.map((item) => [item.id, 3]));
+  storage.saveSession(session);
+  wx.cloud.callFunction = ({ data }) => {
+    cloudCalls.push(data);
+    if (data.action === "completeSession") return Promise.resolve({ result: { ok: false, error: "SCORE_MISMATCH" } });
+    if (data.action === "getState") return Promise.resolve({ result: { ok: true, data: { sessions: [], results: [] } } });
+    return Promise.resolve({ result: { ok: true, data: {} } });
+  };
+
+  const result = await assessment.completeSession(session);
+  assert.equal(result.syncBlocked, true);
+  assert.equal(result.syncError, "SCORE_MISMATCH");
+  assert.equal(Object.hasOwn(result, "answers"), true, "失败时保留答案以便排查或后续恢复");
+
+  cloudCalls.length = 0;
+  await assessment.syncAll();
+  assert.equal(cloudCalls.some((call) => call.action === "completeSession"), false);
+});
+
+test("同答题数会使用服务端版本时间解决会话冲突", async () => {
+  const scaleId = "ipip-neo-60-zh-local-v1";
+  storage.saveSession({
+    sessionId: "local-session", scaleId, scaleVersion: 1, answers: { [`${scaleId}-N1-1`]: 2 },
+    currentIndex: 0, updatedAt: 9999999999999, serverUpdatedAt: 200, synced: true,
+  });
+  let remoteRevision = 100;
+  wx.cloud.callFunction = ({ data }) => {
+    cloudCalls.push(data);
+    if (data.action === "getState") {
+      return Promise.resolve({ result: { ok: true, data: { sessions: [{
+        sessionId: "remote-session", scaleId, scaleVersion: 1, answers: { [`${scaleId}-N1-1`]: 4 },
+        currentIndex: 0, updatedAt: 1, serverUpdatedAt: remoteRevision,
+      }], results: [] } } });
+    }
+    return Promise.resolve({ result: { ok: true, data: {} } });
+  };
+
+  await assessment.syncAll();
+  assert.equal(storage.getSession(scaleId).answers[`${scaleId}-N1-1`], 2, "较旧云端版本不应覆盖本地");
+  remoteRevision = 300;
+  await assessment.syncAll();
+  assert.equal(storage.getSession(scaleId).answers[`${scaleId}-N1-1`], 4, "较新云端版本应胜出");
+});
+
+test("云端历史结果会自动翻页并合并到本地", async () => {
+  wx.cloud.callFunction = ({ data }) => {
+    cloudCalls.push(data);
+    if (data.action === "getState") {
+      return Promise.resolve({ result: { ok: true, data: {
+        sessions: [], results: [{ resultId: "page-1", completedAt: 2, domains: [] }],
+        resultsHasMore: true, resultsNextOffset: 50,
+      } } });
+    }
+    if (data.action === "listResults") {
+      assert.equal(data.offset, 50);
+      return Promise.resolve({ result: { ok: true, data: {
+        results: [{ resultId: "page-2", completedAt: 1, domains: [] }], hasMore: false, nextOffset: null,
+      } } });
+    }
+    return Promise.resolve({ result: { ok: true, data: {} } });
+  };
+
+  await assessment.syncAll();
+  assert.deepEqual(storage.readState().results.map((item) => item.resultId), ["page-1", "page-2"]);
+  assert.equal(cloudCalls.filter((call) => call.action === "listResults").length, 1);
 });
 
 test("云函数长时间无响应时主动结束等待", async () => {

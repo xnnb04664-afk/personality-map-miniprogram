@@ -3,7 +3,7 @@
   <view class="report-head">
     <view class="report-eyebrow">{{result.scaleTitle}} · {{result.itemCount}} 题</view>
     <view class="report-title">你的人格图谱</view>
-    <view class="report-date">完成于 {{dateText}} · {{result.synced ? '已同步' : '保存在本机'}}</view>
+    <view class="report-date">完成于 {{dateText}} · {{syncText}}</view>
     <view class="report-note">分数表示你在量表两端之间的位置，不是超过多少人的百分位。</view>
   </view>
 

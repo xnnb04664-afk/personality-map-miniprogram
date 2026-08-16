@@ -53,6 +53,15 @@ test("旧版缓存会自动补齐删除队列结构", () => {
   assert.deepEqual(storage.readState().pendingDeletes, { all: false, resultIds: [] });
 });
 
+test("已同步报告不会长期保留逐题答案", () => {
+  memory.set(storage.STORAGE_KEY, {
+    sessions: {}, pendingDeletes: { all: false, resultIds: [] },
+    results: [{ resultId: "r1", scaleId: "a", synced: true, answers: { q1: 5 }, domains: [] }],
+  });
+  const result = storage.getResult("r1");
+  assert.equal(Object.hasOwn(result, "answers"), false);
+});
+
 test("本地存储写入失败时提示用户且不打断页面逻辑", () => {
   const originalSetStorageSync = wx.setStorageSync;
   const originalConsoleError = console.error;

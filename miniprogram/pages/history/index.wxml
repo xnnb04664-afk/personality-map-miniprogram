@@ -18,7 +18,7 @@
       <view class="result-row" wx:for="{{results}}" wx:key="resultId">
         <view class="result-click" data-id="{{item.resultId}}" bindtap="openResult">
           <view class="record-title">{{item.scaleTitle}}</view>
-          <view class="record-meta">{{item.dateText}} · {{item.itemCount}} 题</view>
+          <view class="record-meta">{{item.dateText}} · {{item.itemCount}} 题 · {{item.syncLabel}}</view>
           <view class="score-line">{{item.scoreLine}}</view>
         </view>
         <button class="delete-button" data-id="{{item.resultId}}" catchtap="deleteResult" aria-label="删除报告">×</button>

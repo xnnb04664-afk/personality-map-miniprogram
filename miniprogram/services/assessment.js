@@ -3,6 +3,9 @@ const { getScale } = require("../data/scales");
 const { validateAnswers, scoreAssessment } = require("../utils/scoring");
 
 const CLOUD_TIMEOUT_MS = 12000;
+const PERMANENT_RESULT_ERRORS = new Set([
+  "INVALID_RESULT", "INVALID_ANSWERS", "INVALID_ANSWER_VALUE", "INCOMPLETE_ANSWERS", "INVALID_SCORES", "SCORE_MISMATCH",
+]);
 const syncTimers = new Map();
 const completedSessionIds = new Set();
 let syncPromise = null;
@@ -67,6 +70,15 @@ function cancelSessionSync(scaleId) {
   syncTimers.delete(scaleId);
 }
 
+function withoutAnswers(result) {
+  const { answers, ...summary } = result;
+  return summary;
+}
+
+function sessionRevision(session) {
+  return Number(session && session.serverUpdatedAt) || Number(session && session.updatedAt) || 0;
+}
+
 function scheduleSessionSync(session) {
   if (!cloudEnabled()) return;
   cancelSessionSync(session.scaleId);
@@ -76,11 +88,15 @@ function scheduleSessionSync(session) {
     const latest = storage.getSession(session.scaleId);
     if (!latest || latest.sessionId !== session.sessionId || latest.updatedAt !== session.updatedAt) return;
     try {
-      await callCloud("upsertSession", { session });
+      const outcome = await callCloud("upsertSession", { session });
       const current = storage.getSession(session.scaleId);
       if (current && current.sessionId === session.sessionId && current.updatedAt === session.updatedAt) {
-        current.synced = true;
-        storage.saveSession(current);
+        const authoritative = outcome && outcome.session ? outcome.session : current;
+        if (!outcome || outcome.accepted !== false) {
+          session.serverUpdatedAt = authoritative.serverUpdatedAt;
+          session.synced = true;
+        }
+        storage.saveSession({ ...authoritative, synced: true });
       }
     } catch (error) {
       console.warn("答题进度将在稍后同步", error.message);
@@ -131,16 +147,27 @@ async function completeSession(session) {
   completedSessionIds.add(session.sessionId);
   cancelSessionSync(session.scaleId);
   storage.saveResult(result);
-  if (cloudEnabled()) {
-    try {
-      await callCloud("completeSession", { result });
-      result.synced = true;
-      storage.saveResult(result);
-    } catch (error) {
-      console.warn("结果将在稍后同步", error.message);
-    }
+  try {
+    if (cloudEnabled()) return await syncResult(result);
+    return result;
+  } finally {
+    completedSessionIds.delete(session.sessionId);
   }
-  return result;
+}
+
+async function syncResult(result) {
+  try {
+    await callCloud("completeSession", { result });
+    const synced = { ...withoutAnswers(result), synced: true, syncBlocked: false, syncError: "" };
+    storage.saveResult(synced);
+    return synced;
+  } catch (error) {
+    const errorCode = String(error && error.message || "CLOUD_REQUEST_FAILED");
+    const failed = { ...result, synced: false, syncBlocked: PERMANENT_RESULT_ERRORS.has(errorCode), syncError: errorCode };
+    storage.saveResult(failed);
+    console.warn(failed.syncBlocked ? "结果同步被云端拒绝" : "结果将在稍后同步", errorCode);
+    return failed;
+  }
 }
 
 function mergeCloudState(remote) {
@@ -150,14 +177,17 @@ function mergeCloudState(remote) {
     const current = local.sessions[incoming.scaleId];
     const incomingCount = Object.keys(incoming.answers || {}).length;
     const currentCount = current ? Object.keys(current.answers || {}).length : -1;
-    if (!current || incomingCount > currentCount || (incomingCount === currentCount && incoming.updatedAt >= current.updatedAt)) {
+    const cloudRevisionWins = incoming.serverUpdatedAt
+      ? (!current || !current.serverUpdatedAt || sessionRevision(incoming) >= sessionRevision(current))
+      : sessionRevision(incoming) >= sessionRevision(current);
+    if (!current || incomingCount > currentCount || (incomingCount === currentCount && cloudRevisionWins)) {
       local.sessions[incoming.scaleId] = { ...incoming, synced: true };
     }
   });
   const resultMap = new Map(local.results.map((item) => [item.resultId, item]));
   const deletedResultIds = new Set(local.pendingDeletes.resultIds);
   (remote.results || []).forEach((item) => {
-    if (!deletedResultIds.has(item.resultId)) resultMap.set(item.resultId, { ...item, synced: true });
+    if (!deletedResultIds.has(item.resultId)) resultMap.set(item.resultId, { ...withoutAnswers(item), synced: true, syncBlocked: false, syncError: "" });
   });
   local.results = Array.from(resultMap.values()).sort((a, b) => b.completedAt - a.completedAt);
   storage.writeState(local);
@@ -191,10 +221,18 @@ async function performSyncAll() {
   if (!await syncPendingDeletes()) return storage.readState();
   const state = storage.readState();
   const pendingSessions = Object.values(state.sessions).filter((item) => !item.synced);
-  const pendingResults = state.results.filter((item) => !item.synced);
-  await Promise.all(pendingSessions.map((session) => callCloud("upsertSession", { session }).catch(() => null)));
-  await Promise.all(pendingResults.map((result) => callCloud("completeSession", { result }).catch(() => null)));
+  const pendingResults = state.results.filter((item) => !item.synced && !item.syncBlocked);
+  await Promise.all(pendingSessions.map((session) => callCloud("upsertSession", { session }).catch((error) => {
+    console.warn("答题进度将在稍后同步", error.message);
+  })));
+  await Promise.all(pendingResults.map((result) => syncResult(result)));
   const remote = await callCloud("getState");
+  while (remote.resultsHasMore) {
+    const page = await callCloud("listResults", { offset: remote.resultsNextOffset });
+    remote.results = (remote.results || []).concat(page.results || []);
+    remote.resultsHasMore = Boolean(page.hasMore);
+    remote.resultsNextOffset = page.nextOffset;
+  }
   return mergeCloudState(remote);
 }
 

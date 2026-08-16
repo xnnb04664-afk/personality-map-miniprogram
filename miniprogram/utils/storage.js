@@ -9,9 +9,14 @@ function emptyState() {
 function normalizeState(saved) {
   if (!saved || !saved.sessions || !Array.isArray(saved.results)) return emptyState();
   const pending = saved.pendingDeletes || {};
+  const results = saved.results.map((result) => {
+    if (!result || !result.synced || !("answers" in result)) return result;
+    const { answers, ...summary } = result;
+    return summary;
+  });
   return {
     sessions: saved.sessions,
-    results: saved.results,
+    results,
     pendingDeletes: {
       all: Boolean(pending.all),
       resultIds: Array.isArray(pending.resultIds) ? Array.from(new Set(pending.resultIds.filter((id) => typeof id === "string"))) : [],

@@ -108,3 +108,9 @@ test("相册权限首次拒绝后可从设置页授权并自动重试", async ()
   assert.equal(saveAttempts, 2);
   assert.equal(lastToast, "已保存到相册");
 });
+
+test("分享卡片只携带公开入口，不包含量表或报告标识", () => {
+  const share = createPage().onShareAppMessage();
+  assert.equal(share.path, "/pages/index/index?from=share");
+  assert.doesNotMatch(share.path, /scaleId|resultId|openid/i);
+});

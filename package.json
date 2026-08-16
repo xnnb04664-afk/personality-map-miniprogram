@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "generate:scale-keys": "node scripts/generate-scale-keys.js",
+    "pretest": "node scripts/generate-scale-keys.js --check",
     "test": "node --test tests/*.test.js"
   }
 }

@@ -27,6 +27,7 @@ Page({
       ...result,
       dateText: formatDate(result.completedAt),
       scoreLine: (result.domains || []).map((domain) => `${domain.name} ${domain.score}`).join(" · "),
+      syncLabel: result.syncBlocked ? "同步失败" : result.synced ? "已同步" : assessment.cloudEnabled() ? "待同步" : "保存在本机",
     }));
     this.setData({ sessions, results, hasData: sessions.length + results.length > 0, cloudEnabled: assessment.cloudEnabled() });
   },

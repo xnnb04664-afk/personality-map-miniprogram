@@ -10,6 +10,20 @@ test("云端分别读取三种量表的未完成会话", () => {
   assert.doesNotMatch(source, /status: "in_progress" \}\)\.limit\(2\)/);
 });
 
+test("云端历史结果按批次完整读取，不再静默限制 30 条", () => {
+  assert.match(source, /async function listStoredResults/);
+  assert.match(source, /\.skip\(offset\)[\s\S]*?\.limit\(RESULT_PAGE_SIZE \+ 1\)/);
+  assert.match(source, /resultsHasMore: resultPage\.hasMore/);
+  assert.match(source, /case "listResults": data = await listStoredResults\(OPENID, event\.offset\)/);
+  assert.doesNotMatch(source, /\.limit\(30\)/);
+});
+
+test("云端同答题数冲突使用服务端版本而非设备时钟", () => {
+  assert.match(source, /baseServerUpdatedAt/);
+  assert.match(source, /basedOnCurrentServerVersion/);
+  assert.match(source, /accepted, session: cleanDoc\(storedSession\)/);
+});
+
 test("云端在草稿写入前后检查完成记录", () => {
   const checks = source.match(/await hasCompletedSession\(openid, input\.sessionId\)/g) || [];
   assert.equal(checks.length, 2);

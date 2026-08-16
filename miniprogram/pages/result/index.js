@@ -21,7 +21,7 @@ function formatDate(value) {
 }
 
 Page({
-  data: { loading: true, result: null, dateText: "", posterReady: false },
+  data: { loading: true, result: null, dateText: "", posterReady: false, syncText: "" },
 
   onLoad(options) {
     this.resultId = options.resultId;
@@ -32,7 +32,8 @@ Page({
         return;
       }
       this.result = result;
-      this.setData({ loading: false, result, dateText: formatDate(result.completedAt) });
+      const syncText = result.syncBlocked ? "同步失败，仅保存在本机" : result.synced ? "已同步" : assessment.cloudEnabled() ? "等待同步" : "保存在本机";
+      this.setData({ loading: false, result, dateText: formatDate(result.completedAt), syncText });
     });
   },
 
@@ -131,7 +132,6 @@ Page({
 
   openAbout() { wx.navigateTo({ url: "/pages/about/index" }); },
   onShareAppMessage() {
-    const scaleId = this.result ? this.result.scaleId : "";
-    return { title: "人格图谱｜从五个维度认识自己", path: `/pages/index/index?from=share&scaleId=${scaleId}` };
+    return { title: "人格图谱｜从五个维度认识自己", path: "/pages/index/index?from=share" };
   },
 });

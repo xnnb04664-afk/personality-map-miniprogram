@@ -29,6 +29,7 @@
     <view class="section-heading">数据与隐私</view>
     <view class="privacy-row"><text>当前保存方式</text><text class="privacy-value">{{cloudEnabled ? '本机 + 微信云端' : '仅本机'}}</text></view>
     <view class="about-copy">应用不收集昵称、头像、手机号、邮箱、年龄或性别。启用云环境后，通过云函数取得的 OpenID 只用于隔离你自己的进度和报告，不会显示或分享。</view>
+    <view class="about-copy">完整答案只在未完成答题或报告等待同步期间保存；同步完成后仅保留分数报告，不长期保存逐题答案。</view>
     <view class="about-copy">海报只包含五维摘要；微信转发只分享小程序入口，不携带报告 ID和完整答案。</view>
     <button class="delete-all" bindtap="clearAll">删除我的全部数据</button>
   </view>

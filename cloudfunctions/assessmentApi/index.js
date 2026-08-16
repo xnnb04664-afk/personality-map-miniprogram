@@ -1,41 +1,24 @@
 const cloud = require("wx-server-sdk");
 const crypto = require("crypto");
+const SCALE_CONFIG = require("./scale-keys.json");
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const SESSION_COLLECTION = "assessment_sessions";
 const RESULT_COLLECTION = "assessment_results";
+const RESULT_PAGE_SIZE = 50;
 
-const SCALE_DEFS = {
-  "ipip-neo-60-zh-local-v1": { version: 1, rounds: 2, itemCount: 60, facetReliability: "exploratory" },
-  "ipip-neo-120-zh-v1": { version: 1, rounds: 4, itemCount: 120 },
-  "ipip-neo-300-zh-local-v1": { version: 1, rounds: 10, itemCount: 300 },
-};
-const FACETS = ["N1", "E1", "O1", "A1", "C1", "N2", "E2", "O2", "A2", "C2", "N3", "E3", "O3", "A3", "C3", "N4", "E4", "O4", "A4", "C4", "N5", "E5", "O5", "A5", "C5", "N6", "E6", "O6", "A6", "C6"];
-const KEYS = {
-  N1: [1, 1, 1, 1, 1, -1, -1, -1, -1, -1], E1: [1, 1, -1, -1, 1, 1, 1, -1, -1, -1],
-  O1: [1, 1, 1, 1, 1, 1, -1, -1, -1, -1], A1: [1, 1, 1, -1, 1, 1, 1, -1, -1, -1],
-  C1: [1, 1, 1, 1, 1, 1, -1, -1, -1, -1], N2: [1, 1, 1, -1, 1, 1, -1, -1, -1, -1],
-  E2: [1, 1, -1, -1, 1, 1, 1, -1, -1, -1], O2: [1, 1, -1, -1, 1, 1, 1, -1, -1, -1],
-  A2: [-1, -1, -1, -1, 1, 1, -1, -1, -1, -1], C2: [1, -1, -1, -1, 1, 1, 1, 1, -1, -1],
-  N3: [1, 1, 1, -1, 1, 1, 1, 1, -1, -1], E3: [1, 1, 1, -1, 1, 1, -1, -1, -1, -1],
-  O3: [1, 1, -1, -1, 1, 1, 1, -1, -1, -1], A3: [1, 1, -1, -1, 1, 1, 1, -1, -1, -1],
-  C3: [1, 1, -1, -1, 1, 1, 1, -1, -1, -1], N4: [1, 1, 1, -1, 1, 1, 1, -1, -1, -1],
-  E4: [1, 1, 1, -1, 1, 1, -1, -1, -1, -1], O4: [1, -1, -1, -1, 1, 1, 1, -1, -1, -1],
-  A4: [-1, -1, -1, -1, 1, 1, 1, -1, -1, -1], C4: [1, 1, -1, -1, 1, 1, 1, 1, 1, -1],
-  N5: [1, -1, -1, -1, 1, 1, 1, 1, -1, -1], E5: [1, 1, 1, 1, 1, 1, 1, 1, -1, -1],
-  O5: [1, -1, -1, -1, 1, 1, 1, 1, -1, -1], A5: [-1, -1, -1, -1, 1, 1, 1, 1, -1, -1],
-  C5: [1, 1, -1, -1, 1, 1, 1, -1, -1, -1], N6: [1, 1, 1, -1, 1, 1, -1, -1, -1, -1],
-  E6: [1, 1, 1, 1, 1, 1, 1, 1, -1, -1], O6: [1, 1, 1, 1, 1, 1, -1, -1, -1, -1],
-  A6: [1, 1, -1, -1, 1, 1, -1, -1, -1, -1], C6: [-1, -1, -1, -1, 1, 1, 1, -1, -1, -1],
-};
-const IPIP_NEO_60_KEYS = {
-  N1: [1, 1], N2: [1, 1], N3: [1, 1], N4: [1, 1], N5: [-1, -1], N6: [-1, -1],
-  E1: [1, 1], E2: [1, -1], E3: [1, 1], E4: [1, 1], E5: [1, 1], E6: [1, 1],
-  O1: [1, 1], O2: [1, -1], O3: [1, -1], O4: [-1, -1], O5: [-1, -1], O6: [1, -1],
-  A1: [1, 1], A2: [-1, -1], A3: [1, 1], A4: [-1, -1], A5: [-1, -1], A6: [1, 1],
-  C1: [1, 1], C2: [1, -1], C3: [1, -1], C4: [1, 1], C5: [1, -1], C6: [-1, -1],
-};
+const FACETS = SCALE_CONFIG.facets;
+const SCALE_DEFS = {};
+Object.keys(SCALE_CONFIG.scales).forEach((scaleId) => {
+  const config = SCALE_CONFIG.scales[scaleId];
+  SCALE_DEFS[scaleId] = {
+    version: config.version,
+    rounds: config.rounds,
+    itemCount: config.itemCount,
+    facetReliability: config.facetReliability,
+  };
+});
 
 let collectionsReady;
 async function ensureCollections() {
@@ -80,7 +63,7 @@ function validateDomains(domains) {
 
 function calculateScores(scaleId, answers) {
   const rounds = SCALE_DEFS[scaleId].rounds;
-  const keys = scaleId === "ipip-neo-60-zh-local-v1" ? IPIP_NEO_60_KEYS : KEYS;
+  const keys = SCALE_CONFIG.scales[scaleId].keys;
   const facetScores = {};
   FACETS.forEach((facet) => {
     let sum = 0;
@@ -134,16 +117,31 @@ async function hasCompletedSession(openid, sessionId) {
   return response.data.length > 0;
 }
 
+async function listStoredResults(openid, requestedOffset = 0) {
+  const offset = Math.max(0, Math.floor(Number(requestedOffset) || 0));
+  const response = await db.collection(RESULT_COLLECTION)
+    .where({ _openid: openid })
+    .orderBy("completedAt", "desc")
+    .skip(offset)
+    .limit(RESULT_PAGE_SIZE + 1)
+    .get();
+  const hasMore = response.data.length > RESULT_PAGE_SIZE;
+  const results = response.data.slice(0, RESULT_PAGE_SIZE).map(cleanDoc);
+  return { results, hasMore, nextOffset: hasMore ? offset + results.length : null };
+}
+
 async function getState(openid) {
-  const [sessionResponses, resultResponse] = await Promise.all([
+  const [sessionResponses, resultPage] = await Promise.all([
     Promise.all(Object.keys(SCALE_DEFS).map((scaleId) => (
       db.collection(SESSION_COLLECTION).where({ _openid: openid, scaleId, status: "in_progress" }).limit(5).get()
     ))),
-    db.collection(RESULT_COLLECTION).where({ _openid: openid }).orderBy("completedAt", "desc").limit(30).get(),
+    listStoredResults(openid),
   ]);
   return {
     sessions: sessionResponses.map((response) => preferredSession(response.data)).filter(Boolean).map(cleanDoc),
-    results: resultResponse.data.map(cleanDoc),
+    results: resultPage.results,
+    resultsHasMore: resultPage.hasMore,
+    resultsNextOffset: resultPage.nextOffset,
   };
 }
 
@@ -151,8 +149,12 @@ async function upsertSession(openid, input) {
   const def = SCALE_DEFS[input && input.scaleId];
   if (!input || !def || input.scaleVersion !== def.version || typeof input.sessionId !== "string") throw new Error("INVALID_SESSION");
   validateAnswers(input.scaleId, input.answers, false);
-  if (await hasCompletedSession(openid, input.sessionId)) return { sessionId: input.sessionId, ignored: true };
+  if (await hasCompletedSession(openid, input.sessionId)) {
+    await db.collection(SESSION_COLLECTION).where({ _openid: openid, sessionId: input.sessionId, status: "in_progress" }).remove();
+    return { sessionId: input.sessionId, ignored: true };
+  }
   const now = Date.now();
+  const baseServerUpdatedAt = Number(input.serverUpdatedAt) || 0;
   const session = {
     _openid: openid,
     sessionId: input.sessionId,
@@ -166,13 +168,21 @@ async function upsertSession(openid, input) {
     serverUpdatedAt: now,
   };
   const existing = await db.collection(SESSION_COLLECTION).where({ _openid: openid, scaleId: input.scaleId, status: "in_progress" }).limit(1).get();
+  let accepted = true;
+  let storedSession = session;
   if (existing.data.length) {
     const current = existing.data[0];
     const incomingCount = Object.keys(session.answers).length;
     const currentCount = Object.keys(current.answers || {}).length;
     const explicitRestart = session.sessionId !== current.sessionId && session.startedAt >= current.startedAt;
-    if (explicitRestart || incomingCount > currentCount || (incomingCount === currentCount && session.updatedAt >= current.updatedAt)) {
+    const sameSessionUpdate = session.sessionId === current.sessionId && incomingCount === currentCount;
+    const basedOnCurrentServerVersion = baseServerUpdatedAt && baseServerUpdatedAt >= Number(current.serverUpdatedAt || 0);
+    const legacyTimestampFallback = !current.serverUpdatedAt && session.updatedAt >= current.updatedAt;
+    if (explicitRestart || incomingCount > currentCount || (sameSessionUpdate && (basedOnCurrentServerVersion || legacyTimestampFallback))) {
       await db.collection(SESSION_COLLECTION).doc(current._id).set({ data: session });
+    } else {
+      accepted = false;
+      storedSession = current;
     }
   } else {
     const documentId = scopedDocumentId(openid, "session", input.scaleId);
@@ -182,7 +192,7 @@ async function upsertSession(openid, input) {
     await db.collection(SESSION_COLLECTION).where({ _openid: openid, sessionId: input.sessionId, status: "in_progress" }).remove();
     return { sessionId: input.sessionId, ignored: true };
   }
-  return { sessionId: input.sessionId };
+  return { sessionId: input.sessionId, accepted, session: cleanDoc(storedSession) };
 }
 
 async function completeSession(openid, input) {
@@ -245,7 +255,7 @@ exports.main = async (event) => {
       case "upsertSession": data = await upsertSession(OPENID, event.session); break;
       case "completeSession": data = await completeSession(OPENID, event.result); break;
       case "getResult": data = await getResult(OPENID, event.resultId); break;
-      case "listResults": data = (await getState(OPENID)).results; break;
+      case "listResults": data = await listStoredResults(OPENID, event.offset); break;
       case "deleteResult": data = await deleteResult(OPENID, event.resultId); break;
       case "deleteAll": data = await deleteAll(OPENID); break;
       default: throw new Error("UNKNOWN_ACTION");
