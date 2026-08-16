@@ -283,27 +283,10 @@ page {
   text-align: center;
 }
 
-.reset-glyph {
-  position: relative;
+.reset-icon {
   display: block;
-  width: 34rpx;
-  height: 34rpx;
-  border: 6rpx solid #ffffff;
-  border-top-color: transparent;
-  border-left-color: transparent;
-  border-radius: 50%;
-  transform: rotate(-42deg);
-}
-
-.reset-glyph::after {
-  position: absolute;
-  top: -7rpx;
-  left: -8rpx;
-  width: 0;
-  height: 0;
-  border-top: 11rpx solid #ffffff;
-  border-right: 11rpx solid transparent;
-  content: "";
+  width: 44rpx;
+  height: 44rpx;
 }
 
 .drawer-mask {
