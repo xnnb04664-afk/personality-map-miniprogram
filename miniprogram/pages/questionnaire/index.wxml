@@ -28,7 +28,7 @@
   <view class="question-actions-panel">
     <view class="question-footer">
       <button class="nav-button" bindtap="previous" disabled="{{currentIndex === 0}}">上一题</button>
-      <button class="reset-button" bindtap="restart" aria-label="重新开始当前测试">↻</button>
+      <button class="reset-button" bindtap="restart" aria-label="重新开始当前测试"><text class="reset-icon">↻</text></button>
       <block wx:if="{{!canSubmit}}">
         <button wx:if="{{!isLast}}" class="nav-button" bindtap="next">下一题</button>
         <button wx:else class="nav-button missing-action" bindtap="findMissing">查看未答</button>

@@ -286,6 +286,14 @@ page {
   text-align: center;
 }
 
+.reset-icon {
+  display: block;
+  color: #9b4b4b;
+  font-size: 38rpx;
+  font-weight: 500;
+  line-height: 1;
+}
+
 .drawer-mask {
   position: fixed;
   top: 0;
