@@ -132,6 +132,6 @@ Page({
 
   openAbout() { wx.navigateTo({ url: "/pages/about/index" }); },
   onShareAppMessage() {
-    return { title: "人格图谱｜从五个维度认识自己", path: "/pages/index/index?from=share" };
+    return { title: "人格图谱｜从五个维度认识自己", path: "/pages/index/index" };
   },
 });

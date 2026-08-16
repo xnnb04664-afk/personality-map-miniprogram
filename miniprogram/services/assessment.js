@@ -93,8 +93,8 @@ function scheduleSessionSync(session) {
       if (current && current.sessionId === session.sessionId && current.updatedAt === session.updatedAt) {
         const authoritative = outcome && outcome.session ? outcome.session : current;
         if (!outcome || outcome.accepted !== false) {
+          // 更新答题页仍持有的会话对象，下一次同题数修改要携带服务端版本基线。
           session.serverUpdatedAt = authoritative.serverUpdatedAt;
-          session.synced = true;
         }
         storage.saveSession({ ...authoritative, synced: true });
       }

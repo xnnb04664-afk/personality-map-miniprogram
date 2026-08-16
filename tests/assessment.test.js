@@ -7,7 +7,11 @@ const cloudCalls = [];
 
 function successfulCallFunction({ data }) {
   cloudCalls.push(data);
-  const responseData = data.action === "getState" ? { sessions: [], results: [] } : {};
+  const responseData = data.action === "getState"
+    ? { sessions: [], results: [] }
+    : data.action === "upsertSession"
+      ? { accepted: true, session: { ...data.session, serverUpdatedAt: 777 } }
+      : {};
   return Promise.resolve({ result: { ok: true, data: responseData } });
 }
 
@@ -118,6 +122,16 @@ test("同步后的同版本云端草稿会回写已同步状态", async () => {
   cloudCalls.length = 0;
   await assessment.syncAll();
   assert.equal(cloudCalls.some((call) => call.action === "upsertSession"), false);
+});
+
+test("防抖同步会更新答题页持有的服务端版本基线", async () => {
+  const scale = getScale("ipip-neo-60-zh-local-v1");
+  let session = assessment.getOrCreateSession(scale.id, true);
+  session = assessment.answerQuestion(session, scale.items[0].id, 3, 0);
+  await new Promise((resolve) => setTimeout(resolve, 760));
+
+  assert.equal(session.serverUpdatedAt, 777);
+  assert.equal(storage.getSession(scale.id).serverUpdatedAt, 777);
 });
 
 test("完成答题会取消尚未执行的草稿同步", async () => {

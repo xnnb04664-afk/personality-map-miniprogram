@@ -7,28 +7,42 @@ function emptyState() {
 }
 
 function normalizeState(saved) {
-  if (!saved || !saved.sessions || !Array.isArray(saved.results)) return emptyState();
+  if (!saved || !saved.sessions || !Array.isArray(saved.results)) return { state: emptyState(), changed: false };
   const pending = saved.pendingDeletes || {};
+  let changed = false;
   const results = saved.results.map((result) => {
     if (!result || !result.synced || !("answers" in result)) return result;
+    changed = true;
     const { answers, ...summary } = result;
     return summary;
   });
   return {
-    sessions: saved.sessions,
-    results,
-    pendingDeletes: {
-      all: Boolean(pending.all),
-      resultIds: Array.isArray(pending.resultIds) ? Array.from(new Set(pending.resultIds.filter((id) => typeof id === "string"))) : [],
+    state: {
+      sessions: saved.sessions,
+      results,
+      pendingDeletes: {
+        all: Boolean(pending.all),
+        resultIds: Array.isArray(pending.resultIds) ? Array.from(new Set(pending.resultIds.filter((id) => typeof id === "string"))) : [],
+      },
     },
+    changed,
   };
 }
 
 function readState() {
-  if (volatileState) return normalizeState(volatileState);
+  if (volatileState) return normalizeState(volatileState).state;
   try {
     const saved = wx.getStorageSync(STORAGE_KEY);
-    return normalizeState(saved);
+    const normalized = normalizeState(saved);
+    if (normalized.changed) {
+      try {
+        wx.setStorageSync(STORAGE_KEY, normalized.state);
+      } catch (error) {
+        console.warn("清理本地逐题答案失败", error);
+        volatileState = normalized.state;
+      }
+    }
+    return normalized.state;
   } catch (error) {
     console.warn("读取本地记录失败", error);
   }

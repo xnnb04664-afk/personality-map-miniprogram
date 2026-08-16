@@ -9,3 +9,5 @@
 部署前可先保持环境 ID 为空；小程序会使用本机保存模式。
 
 `scale-keys.json` 由项目根目录的 `npm run generate:scale-keys` 生成，请勿在云函数目录中手动维护计分键。
+
+历史报告采用 `_openid` 过滤并按 `completedAt` 排序分页读取。首次部署后请在云开发控制台确认 `assessment_results` 的查询索引可用；若控制台提示联合索引缺失，按 `_openid` + `completedAt`（降序）创建索引后再验证历史记录翻页。

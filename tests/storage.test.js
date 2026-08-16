@@ -60,6 +60,8 @@ test("已同步报告不会长期保留逐题答案", () => {
   });
   const result = storage.getResult("r1");
   assert.equal(Object.hasOwn(result, "answers"), false);
+  const persisted = memory.get(storage.STORAGE_KEY);
+  assert.equal(Object.hasOwn(persisted.results[0], "answers"), false);
 });
 
 test("本地存储写入失败时提示用户且不打断页面逻辑", () => {
