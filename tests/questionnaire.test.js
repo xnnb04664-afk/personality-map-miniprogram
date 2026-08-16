@@ -40,6 +40,8 @@ test("答题页使用单屏布局并只让长题文区域滚动", () => {
   assert.match(template, /class="restart-icon"/);
   assert.match(styles, /\.question-page\s*\{[\s\S]*?height:\s*100vh;[\s\S]*?overflow:\s*hidden;/);
   assert.match(styles, /\.question-body\s*\{[\s\S]*?min-height:\s*0;[\s\S]*?overflow:\s*hidden;/);
+  assert.match(styles, /\.choice-list\s*\{[\s\S]*?flex:\s*1;[\s\S]*?min-height:\s*0;/);
+  assert.match(styles, /\.choice-button\s*\{[\s\S]*?flex:\s*1 1 0;/);
   assert.match(styles, /\.choice-button\s*\{[\s\S]*?min-height:\s*104rpx;/);
 });
 
