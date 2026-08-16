@@ -284,3 +284,66 @@ test("云函数长时间无响应时主动结束等待", async () => {
     wx.cloud.callFunction = originalCallFunction;
   }
 });
+
+test("清空数据会等待未完成的云写入再执行云端删除", async () => {
+  const scale = getScale("ipip-neo-60-zh-local-v1");
+  let releaseUpsert;
+  wx.cloud.callFunction = ({ data }) => {
+    cloudCalls.push(data);
+    if (data.action === "upsertSession") {
+      return new Promise((resolve) => { releaseUpsert = () => resolve({ result: { ok: true, data: { accepted: true, session: data.session } } }); });
+    }
+    if (data.action === "deleteAll") return Promise.resolve({ result: { ok: true, data: {} } });
+    return Promise.resolve({ result: { ok: true, data: { sessions: [], results: [] } } });
+  };
+
+  let session = assessment.getOrCreateSession(scale.id, true);
+  session = assessment.answerQuestion(session, scale.items[0].id, 3, 0);
+  await new Promise((resolve) => setTimeout(resolve, 760));
+  const deleting = assessment.deleteAll();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(cloudCalls.some((call) => call.action === "deleteAll"), false);
+
+  releaseUpsert();
+  await deleting;
+  assert.equal(cloudCalls.filter((call) => call.action === "deleteAll").length, 1);
+  assert.equal(storage.getSession(scale.id), null);
+  assert.equal(storage.readState().pendingDeletes.all, false);
+});
+
+test("删除中的报告不会被在途同步重新写回", async () => {
+  let releaseComplete;
+  const result = { resultId: "race-result", scaleId: "ipip-neo-60-zh-local-v1", completedAt: 1, domains: [], answers: {}, synced: false };
+  storage.saveResult(result);
+  wx.cloud.callFunction = ({ data }) => {
+    cloudCalls.push(data);
+    if (data.action === "completeSession") {
+      return new Promise((resolve) => { releaseComplete = () => resolve({ result: { ok: true, data: {} } }); });
+    }
+    if (data.action === "deleteResult") return Promise.resolve({ result: { ok: true, data: {} } });
+    if (data.action === "getState") return Promise.resolve({ result: { ok: true, data: { sessions: [], results: [result] } } });
+    return Promise.resolve({ result: { ok: true, data: {} } });
+  };
+
+  const syncing = assessment.syncAll();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(typeof releaseComplete, "function");
+  const deleting = assessment.deleteResult(result.resultId);
+  releaseComplete();
+  await Promise.all([syncing, deleting]);
+  assert.equal(storage.getResult(result.resultId), null);
+  assert.deepEqual(storage.readState().pendingDeletes.resultIds, []);
+});
+
+test("从云端读取报告不会删除同量表的进行中草稿", async () => {
+  const scaleId = "ipip-neo-60-zh-local-v1";
+  storage.saveSession({ sessionId: "draft", scaleId, answers: {}, currentIndex: 0, synced: false });
+  wx.cloud.callFunction = ({ data }) => {
+    cloudCalls.push(data);
+    if (data.action === "getResult") return Promise.resolve({ result: { ok: true, data: { resultId: "remote", scaleId, completedAt: 2, domains: [] } } });
+    return Promise.resolve({ result: { ok: true, data: {} } });
+  };
+
+  await assessment.getResult("remote");
+  assert.equal(storage.getSession(scaleId).sessionId, "draft");
+});

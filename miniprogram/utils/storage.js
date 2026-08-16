@@ -88,10 +88,12 @@ function removeSession(scaleId) {
   writeState(state);
 }
 
-function saveResult(result) {
+function saveResult(result, options = {}) {
   const state = readState();
+  const rejectDeleted = options.rejectDeleted === true;
+  if (rejectDeleted && (state.pendingDeletes.all || state.pendingDeletes.resultIds.includes(result.resultId))) return null;
   state.results = [result, ...state.results.filter((item) => item.resultId !== result.resultId)];
-  delete state.sessions[result.scaleId];
+  if (options.removeSession !== false) delete state.sessions[result.scaleId];
   writeState(state);
   return result;
 }

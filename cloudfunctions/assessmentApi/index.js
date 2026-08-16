@@ -231,15 +231,33 @@ async function checkAiContent(openid, insight) {
     insight.contexts.stress,
     ...insight.actions,
   ].join("\n");
-  for (let offset = 0; offset < content.length; offset += 1800) {
+  for (const chunk of splitUtf8Chunks(content, 4200)) {
     let checked;
     try {
-      checked = await cloud.openapi.security.msgSecCheck({ content: content.slice(offset, offset + 1800), version: 2, scene: 2, openid });
+      checked = await cloud.openapi.security.msgSecCheck({ content: chunk, version: 2, scene: 2, openid });
     } catch (error) {
       throw new Error("AI_CONTENT_CHECK_FAILED");
     }
     if (!checked || !checked.result || checked.result.suggest !== "pass") throw new Error("AI_CONTENT_REJECTED");
   }
+}
+
+function splitUtf8Chunks(text, maxBytes) {
+  const chunks = [];
+  let current = "";
+  let currentBytes = 0;
+  for (const character of text) {
+    const characterBytes = Buffer.byteLength(character, "utf8");
+    if (current && currentBytes + characterBytes > maxBytes) {
+      chunks.push(current);
+      current = "";
+      currentBytes = 0;
+    }
+    current += character;
+    currentBytes += characterBytes;
+  }
+  if (current) chunks.push(current);
+  return chunks;
 }
 
 function aiResponse(result) {
@@ -466,7 +484,8 @@ async function upsertSession(openid, input) {
     const sameSessionUpdate = session.sessionId === current.sessionId && incomingCount === currentCount;
     const basedOnCurrentServerVersion = baseServerUpdatedAt && baseServerUpdatedAt >= Number(current.serverUpdatedAt || 0);
     const legacyTimestampFallback = !current.serverUpdatedAt && session.updatedAt >= current.updatedAt;
-    if (explicitRestart || incomingCount > currentCount || (sameSessionUpdate && (basedOnCurrentServerVersion || legacyTimestampFallback))) {
+    const sameSession = session.sessionId === current.sessionId;
+    if (explicitRestart || (sameSession && incomingCount > currentCount) || (sameSessionUpdate && (basedOnCurrentServerVersion || legacyTimestampFallback))) {
       await db.collection(SESSION_COLLECTION).doc(current._id).set({ data: session });
     } else {
       accepted = false;

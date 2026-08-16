@@ -11,6 +11,7 @@ const PERMANENT_RESULT_ERRORS = new Set([
 ]);
 const syncTimers = new Map();
 const completedSessionIds = new Set();
+const activeCloudWrites = new Set();
 let syncPromise = null;
 let consentPromise = null;
 
@@ -41,6 +42,22 @@ async function callCloud(action, data = {}, timeoutMs = CLOUD_TIMEOUT_MS) {
     throw new Error((response.result && response.result.error) || "CLOUD_REQUEST_FAILED");
   }
   return response.result.data;
+}
+
+function callCloudWrite(action, data = {}, timeoutMs = CLOUD_TIMEOUT_MS) {
+  const request = callCloud(action, data, timeoutMs);
+  activeCloudWrites.add(request);
+  request.then(
+    () => activeCloudWrites.delete(request),
+    () => activeCloudWrites.delete(request),
+  );
+  return request;
+}
+
+async function waitForCloudWrites() {
+  while (activeCloudWrites.size) {
+    await Promise.all(Array.from(activeCloudWrites).map((request) => request.catch(() => null)));
+  }
 }
 
 function newSession(scaleId, explicitRestart = false) {
@@ -146,9 +163,10 @@ function scheduleSessionSync(session) {
     const latest = storage.getSession(session.scaleId);
     if (!latest || latest.sessionId !== session.sessionId || latest.updatedAt !== session.updatedAt) return;
     try {
-      const outcome = await callCloud("upsertSession", { session });
+      const outcome = await callCloudWrite("upsertSession", { session });
       const current = storage.getSession(session.scaleId);
-      if (current && current.sessionId === session.sessionId && current.updatedAt === session.updatedAt) {
+      const state = storage.readState();
+      if (!state.pendingDeletes.all && current && current.sessionId === session.sessionId && current.updatedAt === session.updatedAt) {
         const authoritative = outcome && outcome.session ? outcome.session : current;
         if (!outcome || outcome.accepted !== false) {
           // 更新答题页仍持有的会话对象，下一次同题数修改要携带服务端版本基线。
@@ -217,17 +235,16 @@ async function completeSession(session, options = {}) {
 
 async function syncResult(result) {
   try {
-    await callCloud("completeSession", { result });
+    await callCloudWrite("completeSession", { result });
     const synced = { ...withoutAnswers(result), synced: true, syncBlocked: false, syncError: "" };
-    storage.saveResult(synced);
-    return synced;
+    return storage.saveResult(synced, { rejectDeleted: true }) || null;
   } catch (error) {
     handleCloudError(error);
     const errorCode = String(error && error.message || "CLOUD_REQUEST_FAILED");
     const failed = { ...result, synced: false, syncBlocked: PERMANENT_RESULT_ERRORS.has(errorCode), syncError: errorCode };
-    storage.saveResult(failed);
+    const saved = storage.saveResult(failed, { rejectDeleted: true });
     console.warn(failed.syncBlocked ? "结果同步被云端拒绝" : "结果将在稍后同步", errorCode);
-    return failed;
+    return saved;
   }
 }
 
@@ -259,7 +276,7 @@ async function syncPendingDeletes() {
   const pending = storage.readState().pendingDeletes;
   if (pending.all) {
     try {
-      await callCloud("deleteAll");
+      await callCloudWrite("deleteAll");
       storage.clearPendingDeleteAll();
       return true;
     } catch (error) {
@@ -269,7 +286,7 @@ async function syncPendingDeletes() {
   }
   await Promise.all(pending.resultIds.map(async (resultId) => {
     try {
-      await callCloud("deleteResult", { resultId });
+      await callCloudWrite("deleteResult", { resultId });
       storage.clearPendingResultDelete(resultId);
     } catch (error) {
       console.warn("云端删除将在稍后重试", resultId, error.message);
@@ -318,7 +335,7 @@ async function getResult(resultId) {
   if (!cloudEnabled()) return null;
   try {
     const remote = await callCloud("getResult", { resultId });
-    if (remote) return storage.saveResult({ ...remote, synced: true });
+    if (remote) return storage.saveResult({ ...remote, synced: true }, { rejectDeleted: true, removeSession: false });
   } catch (error) {
     console.warn("读取云端报告失败", error.message);
   }
@@ -356,7 +373,8 @@ async function deleteResult(resultId) {
   const shouldSync = cloudEnabled();
   storage.removeResult(resultId, shouldSync);
   if (shouldSync) {
-    await callCloud("deleteResult", { resultId });
+    await waitForCloudWrites();
+    await callCloudWrite("deleteResult", { resultId });
     storage.clearPendingResultDelete(resultId);
   }
 }
@@ -367,6 +385,7 @@ async function deleteAll() {
   const shouldSync = cloudEnabled();
   storage.clearAll(shouldSync);
   if (shouldSync) {
+    await waitForCloudWrites();
     await callCloud("deleteAll");
     storage.clearPendingDeleteAll();
   }
