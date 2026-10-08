@@ -67,6 +67,16 @@ Page({
     });
   },
 
+  scheduleAdvance(index) {
+    if (this.advanceTimer !== undefined && this.advanceTimer !== null) return;
+    const fromIndex = this.data.currentIndex;
+    this.advanceTimer = setTimeout(() => {
+      this.advanceTimer = null;
+      if (this.data.currentIndex !== fromIndex) return;
+      this.showQuestion(index);
+    }, 180);
+  },
+
   chooseAnswer(event) {
     const value = Number(event.currentTarget.dataset.value);
     const item = this.scale.items[this.data.currentIndex];
@@ -78,8 +88,7 @@ Page({
     if (this.reviewingMissing) {
       const nextMissing = getNextMissingIndex(this.scale.items, this.session.answers, this.data.currentIndex);
       if (nextMissing >= 0) {
-        clearTimeout(this.advanceTimer);
-        this.advanceTimer = setTimeout(() => this.showQuestion(nextMissing), 180);
+        this.scheduleAdvance(nextMissing);
       } else {
         this.reviewingMissing = false;
         this.setData({ reviewingMissing: false });
@@ -87,8 +96,7 @@ Page({
       return;
     }
     if (this.data.currentIndex < this.scale.itemCount - 1) {
-      clearTimeout(this.advanceTimer);
-      this.advanceTimer = setTimeout(() => this.showQuestion(this.data.currentIndex + 1), 180);
+      this.scheduleAdvance(this.data.currentIndex + 1);
     }
   },
 
